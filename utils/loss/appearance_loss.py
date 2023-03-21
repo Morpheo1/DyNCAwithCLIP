@@ -84,8 +84,8 @@ class ClipLossImgToImg(torch.nn.Module):
 
     def forward(self, target_images, generated_images):
         with torch.no_grad():
-            target_features = self.model.encode_image(self.preprocess(target_images).unsqueeze(0))
-        generated_features = self.model.encode_image(self.preprocess(generated_images).unsqueeze(0))
+            target_features = self.model.encode_image(target_images)
+        generated_features = self.model.encode_image(generated_images)
 
         return torch.sum(torch.einsum('...i,...i', target_features, generated_features))
 
