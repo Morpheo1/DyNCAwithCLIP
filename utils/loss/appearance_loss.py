@@ -5,6 +5,8 @@ import torch.nn.functional as F
 import torchvision.models as torch_models
 import numpy as np
 
+import clip
+from PIL import Image
 
 class AppearanceLoss(torch.nn.Module):
     def __init__(self, args):
@@ -20,10 +22,13 @@ class AppearanceLoss(torch.nn.Module):
             args.texture_slw_weight = 1.0
         elif args.appearance_loss_type == 'Gram':
             args.texture_gram_weight = 1.0
+        elif args.appearance_loss_type == 'CLIP':
+            args.texture_clip_weight = 1.0
 
         self.slw_weight = args.texture_slw_weight
         self.ot_weight = args.texture_ot_weight
         self.gram_weight = args.texture_gram_weight
+        self.clip_weight = args.texture_clip_weight
 
         self._create_losses()
 
@@ -41,6 +46,10 @@ class AppearanceLoss(torch.nn.Module):
         if self.gram_weight != 0:
             self.loss_mapper["Gram"] = GramLoss(self.args)
             self.loss_weights["Gram"] = self.gram_weight
+
+        if self.clip_weight != 0:
+            self.loss_mapper["CLIP"] = ClipLoss(self.args)
+            self.loss_weights["CLIP"] = self.clip_weight
 
     def update_losses_to_apply(self, epoch):
         pass
@@ -65,6 +74,27 @@ class AppearanceLoss(torch.nn.Module):
                 loss += loss_weight * loss_func(target_images, generated_images)
         loss /= len(generated_image_list)
         return loss, None, None
+
+class ClipLossImgToImg(torch.nn.Module):
+    def __init__(self, args):
+        super(ClipLossImgToImg, self).__init__()
+        self.args = args
+
+        self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
+
+    def forward(self, target_images, generated_images):
+        with torch.no_grad():
+            target_features = self.model.encode_image(self.preprocess(target_images).unsqueeze(0))
+        generated_features = self.model.encode_image(self.preprocess(generated_images).unsqueeze(0))
+
+        return torch.sum(torch.einsum('...i,...i', target_features, generated_features))
+
+class ClipLossTxtToImg(torch.nn.Module):
+    def __init__(self, args):
+        super(ClipLossTxtToImg, self).__init__()
+        self.args = args
+
+        self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
 
 
 class GramLoss(torch.nn.Module):
@@ -206,7 +236,6 @@ class OptimalTransportLoss(torch.nn.Module):
             generated_feature = [g[b:b + 1] for g in generated_features]
             loss += self.get_ot_loss_single_batch(target_feature, generated_feature)
         return loss / batch_size
-
 
 def get_middle_feature_vgg(args, imgs, vgg_model, flatten=False, include_image_as_feat=False):
     size = args.img_size
