@@ -48,7 +48,7 @@ class AppearanceLoss(torch.nn.Module):
             self.loss_weights["Gram"] = self.gram_weight
 
         if self.clip_weight != 0:
-            self.loss_mapper["CLIP"] = ClipLoss(self.args)
+            self.loss_mapper["CLIP"] = ClipLossImgToImg(self.args)
             self.loss_weights["CLIP"] = self.clip_weight
 
     def update_losses_to_apply(self, epoch):
