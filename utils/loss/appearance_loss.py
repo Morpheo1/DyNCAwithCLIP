@@ -82,8 +82,8 @@ class ClipLossImgToImg(torch.nn.Module):
         super(ClipLossImgToImg, self).__init__()
         self.args = args
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
-        self.model.eval()
         self.toPIL = T.ToPILImage()
+        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         
 
     def forward(self, target_images, generated_images):
@@ -93,8 +93,8 @@ class ClipLossImgToImg(torch.nn.Module):
             target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
             generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
 
-        target_features = self.encode_image(target_images_processed.to(self.args.DEVICE))
-        generated_features = self.encode_image(generated_images_processed.to(self.args.DEVICE))
+        target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
+        generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
 
         # normalized features
         target_features = target_features / target_features.norm(dim=1, keepdim=True)
