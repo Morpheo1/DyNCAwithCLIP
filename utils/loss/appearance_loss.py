@@ -17,6 +17,7 @@ class AppearanceLoss(torch.nn.Module):
         args.texture_slw_weight = 0.0
         args.texture_ot_weight = 0.0
         args.texture_gram_weight = 0.0
+        args.texture_clip_weight = 0.0
         if args.appearance_loss_type == 'OT':
             args.texture_ot_weight = 1.0
         elif args.appearance_loss_type == 'SlW':
@@ -88,11 +89,11 @@ class ClipLossImgToImg(torch.nn.Module):
         target_images_processed = torch.empty((target_images.shape[0], target_images.shape[1], 224, 224))
         generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
         for i in range(target_images.shape[0]):
-            target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
-            generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
+            target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0)
+            generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0)
         with torch.no_grad():
-            target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
-        generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
+            target_features = self.model.encode_image(target_images_processed)
+        generated_features = self.model.encode_image(generated_images_processed)
 
         return torch.nn.MSELoss(target_features, generated_features)
 
