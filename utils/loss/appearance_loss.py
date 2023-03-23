@@ -83,14 +83,13 @@ class ClipLossImgToImg(torch.nn.Module):
         self.args = args
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
         self.toPIL = T.ToPILImage()
-        self.target_text = clip.tokenize("bubbles").to(args.DEVICE)
-        self.target_features = self.model.encode_text(self.target_text)
-        self.target_features = self.target_features / self.target_features.norm(dim=1, keepdim=True)
+        with torch.no_grad() :
+            self.target_text = clip.tokenize("bubbles").to(args.DEVICE)
+            self.target_features = self.model.encode_text(self.target_text)
+            self.target_features = self.target_features / self.target_features.norm(dim=1, keepdim=True)
         
 
     def forward(self, target_images, generated_images):
-        print(target_images[0])
-        print(generated_images[0])
 
         #target_images_processed = torch.empty((target_images.shape[0], target_images.shape[1], 224, 224))
         generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
