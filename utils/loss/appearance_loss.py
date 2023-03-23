@@ -94,8 +94,9 @@ class ClipLossImgToImg(torch.nn.Module):
         with torch.no_grad():
             target_features = self.model.encode_image(target_images_processed)
         generated_features = self.model.encode_image(generated_images_processed)
+        print(target_features)
 
-        return torch.nn.MSELoss(target_features, generated_features)
+        return torch.abs(target_features - generated_features).sum()
 
 class ClipLossTxtToImg(torch.nn.Module):
     def __init__(self, args):
