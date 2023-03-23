@@ -82,6 +82,7 @@ class ClipLossImgToImg(torch.nn.Module):
         super(ClipLossImgToImg, self).__init__()
         self.args = args
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
+        self.model.eval()
         self.toPIL = T.ToPILImage()
         
 
@@ -89,14 +90,10 @@ class ClipLossImgToImg(torch.nn.Module):
         target_images_processed = torch.empty((target_images.shape[0], target_images.shape[1], 224, 224))
         generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
         for i in range(target_images.shape[0]):
-            target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0)
-            generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0)
-        with torch.no_grad():
-            target_features = self.model.encode_image(target_images_processed)
-        generated_features = self.model.encode_image(generated_images_processed)
-        print(target_features)
+            target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
+            generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
 
-        return torch.abs(target_features - generated_features).sum()
+        return -self.model(target_images_processed, generated_images_processed).mean()
 
 class ClipLossTxtToImg(torch.nn.Module):
     def __init__(self, args):
