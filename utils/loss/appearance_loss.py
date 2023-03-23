@@ -103,10 +103,12 @@ class ClipLossImgToImg(torch.nn.Module):
             T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
         )
         
-        target_images_processed = transforms(target_images)
+        with torch.no_grad():
+            target_images_processed = transforms(target_images)
         generated_images_processed = transforms(generated_images)
 
-        target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
+        with torch.no_grad():
+            target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
         generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
 
         # normalized features
