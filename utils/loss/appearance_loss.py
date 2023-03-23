@@ -93,7 +93,19 @@ class ClipLossImgToImg(torch.nn.Module):
             target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
             generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
 
-        return -self.model(target_images_processed, generated_images_processed).mean()
+        target_features = self.encode_image(target_images_processed.to(self.args.DEVICE))
+        generated_features = self.encode_text(generated_images_processed.to(self.args.DEVICE))
+
+        # normalized features
+        target_features = target_features / target_features.norm(dim=1, keepdim=True)
+        generated_features = generated_features / generated_features.norm(dim=1, keepdim=True)
+
+        # cosine similarity as logits
+        logit_scale = self.logit_scale.exp()
+        logits_per_generated = logit_scale * generated_features @ target_features.t()
+
+        # shape = [global_batch_size, global_batch_size]
+        return -logits_per_generated.mean() + 1
 
 class ClipLossTxtToImg(torch.nn.Module):
     def __init__(self, args):
