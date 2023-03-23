@@ -1,6 +1,7 @@
 import torch
 import torchvision.transforms.functional as TF
 import torch.nn.functional as F
+import torchvision.transforms as T
 
 import torchvision.models as torch_models
 import numpy as np
@@ -79,10 +80,16 @@ class ClipLossImgToImg(torch.nn.Module):
     def __init__(self, args):
         super(ClipLossImgToImg, self).__init__()
         self.args = args
-
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
+        self.toPIL = T.ToPILImage()
+        
 
     def forward(self, target_images, generated_images):
+        target_images_processed = np.empty((target_images.shape[0], target_images.shape[1], 224, 224))
+        generated_images_processed = np.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
+        for i in range(target_images.shape[0]):
+            target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
+            generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
         with torch.no_grad():
             target_features = self.model.encode_image(target_images)
         generated_features = self.model.encode_image(generated_images)
