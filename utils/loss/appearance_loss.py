@@ -94,7 +94,7 @@ class ClipLossImgToImg(torch.nn.Module):
             generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
 
         target_features = self.encode_image(target_images_processed.to(self.args.DEVICE))
-        generated_features = self.encode_text(generated_images_processed.to(self.args.DEVICE))
+        generated_features = self.encode_image(generated_images_processed.to(self.args.DEVICE))
 
         # normalized features
         target_features = target_features / target_features.norm(dim=1, keepdim=True)
