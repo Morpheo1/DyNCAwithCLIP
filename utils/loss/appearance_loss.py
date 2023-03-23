@@ -85,16 +85,16 @@ class ClipLossImgToImg(torch.nn.Module):
         
 
     def forward(self, target_images, generated_images):
-        target_images_processed = np.empty((target_images.shape[0], target_images.shape[1], 224, 224))
-        generated_images_processed = np.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
+        target_images_processed = torch.empty((target_images.shape[0], target_images.shape[1], 224, 224))
+        generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
         for i in range(target_images.shape[0]):
             target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
             generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
         with torch.no_grad():
-            target_features = self.model.encode_image(target_images)
-        generated_features = self.model.encode_image(generated_images)
+            target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
+        generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
 
-        return torch.sum(torch.einsum('...i,...i', target_features, generated_features))
+        return torch.nn.MSELoss(target_features, generated_features)
 
 class ClipLossTxtToImg(torch.nn.Module):
     def __init__(self, args):
