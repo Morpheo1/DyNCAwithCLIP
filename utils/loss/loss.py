@@ -28,6 +28,7 @@ class Loss(torch.nn.Module):
         return overflow_loss, None, None
 
     def _create_losses(self):
+        
         self.loss_mapper = {}
         self.loss_weights = {}
 

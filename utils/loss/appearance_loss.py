@@ -17,20 +17,24 @@ class AppearanceLoss(torch.nn.Module):
         args.texture_slw_weight = 0.0
         args.texture_ot_weight = 0.0
         args.texture_gram_weight = 0.0
-        args.texture_clip_weight = 0.0
+        args.texture_clipimg_weight = 0.0
+        args.texture_cliptxt_weight = 0.0
         if args.appearance_loss_type == 'OT':
             args.texture_ot_weight = 1.0
         elif args.appearance_loss_type == 'SlW':
             args.texture_slw_weight = 1.0
         elif args.appearance_loss_type == 'Gram':
             args.texture_gram_weight = 1.0
-        elif args.appearance_loss_type == 'CLIP':
-            args.texture_clip_weight = 1.0
+        elif args.appearance_loss_type == 'CLIPImg':
+            args.texture_clipimg_weight = 1.0
+        elif args.appearance_loss_type == 'CLIPTxt':
+            args.texture_cliptxt_weight = 1.0
 
         self.slw_weight = args.texture_slw_weight
         self.ot_weight = args.texture_ot_weight
         self.gram_weight = args.texture_gram_weight
-        self.clip_weight = args.texture_clip_weight
+        self.clipimg_weight = args.texture_clipimg_weight
+        self.cliptxt_weight = args.texture_cliptxt_weight
 
         self._create_losses()
 
@@ -49,15 +53,20 @@ class AppearanceLoss(torch.nn.Module):
             self.loss_mapper["Gram"] = GramLoss(self.args)
             self.loss_weights["Gram"] = self.gram_weight
 
-        if self.clip_weight != 0:
-            self.loss_mapper["CLIP"] = ClipLossImgToImg(self.args)
-            self.loss_weights["CLIP"] = self.clip_weight
+        if self.clipimg_weight != 0:
+            self.loss_mapper["CLIPImg"] = ClipLossImgToImg(self.args)
+            self.loss_weights["CLIPImg"] = self.clipimg_weight
+
+        if self.cliptxt_weight != 0:
+            self.loss_mapper["CLIPTxt"] = ClipLossTxtToImg(self.args)
+            self.loss_weights["CLIPTxt"] = self.cliptxt_weight
 
     def update_losses_to_apply(self, epoch):
         pass
 
     def forward(self, input_dict, return_summary=True):
         loss = 0.0
+        target_text = input_dict['target_text']
         target_image_list = input_dict['target_image_list']
         generated_image_list = input_dict['generated_image_list']
         for target_images, generated_images in zip(target_image_list, generated_image_list):
@@ -73,7 +82,10 @@ class AppearanceLoss(torch.nn.Module):
             for loss_name in self.loss_mapper:
                 loss_weight = self.loss_weights[loss_name]
                 loss_func = self.loss_mapper[loss_name]
-                loss += loss_weight * loss_func(target_images, generated_images)
+                if self.cliptxt_weight != 0:
+                    loss += loss_weight * loss_func(target_text, generated_images)
+                else :
+                    loss += loss_weight * loss_func(target_images, generated_images)
         loss /= len(generated_image_list)
         return loss, None, None
 
@@ -82,23 +94,11 @@ class ClipLossImgToImg(torch.nn.Module):
         super(ClipLossImgToImg, self).__init__()
         self.args = args
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
-        self.toPIL = T.ToPILImage()
-        #with torch.no_grad() :
-        #    self.target_text = clip.tokenize("bubbles").to(args.DEVICE)
-        #    self.target_features = self.model.encode_text(self.target_text)
-        #    self.target_features = self.target_features / self.target_features.norm(dim=1, keepdim=True)
         
 
     def forward(self, target_images, generated_images):
-
-        #target_images_processed = torch.empty((target_images.shape[0], target_images.shape[1], 224, 224))
-        #generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
-        #for i in range(target_images.shape[0]):
-        #    target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
-        #    generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
-
         transforms = torch.nn.Sequential(
-            T.Resize(256),
+            T.Resize(224),
             T.CenterCrop(224),
             T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
         )
@@ -125,8 +125,31 @@ class ClipLossTxtToImg(torch.nn.Module):
     def __init__(self, args):
         super(ClipLossTxtToImg, self).__init__()
         self.args = args
-
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
+        
+
+    def forward(self, target_text, generated_images):
+        transforms = torch.nn.Sequential(
+            T.Resize(256),
+            T.CenterCrop(224),
+            T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
+        )
+        
+        generated_images_processed = transforms(generated_images)
+
+        with torch.no_grad():
+            target_features = self.model.encode_text(clip.tokenize(target_text).to(self.args.DEVICE))
+        generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
+
+        # normalized features
+        target_features = target_features / target_features.norm(dim=1, keepdim=True)
+        generated_features = generated_features / generated_features.norm(dim=1, keepdim=True)
+
+        # cosine similarity
+        cos_per_generated = generated_features @ target_features.t()
+
+        # shape = [global_batch_size, global_batch_size]
+        return (- cos_per_generated.mean(axis = 1) + 1).sum()
 
 
 class GramLoss(torch.nn.Module):
