@@ -19,6 +19,7 @@ class AppearanceLoss(torch.nn.Module):
         args.texture_gram_weight = 0.0
         args.texture_clipimg_weight = 0.0
         args.texture_cliptxt_weight = 0.0
+
         if args.appearance_loss_type == 'OT':
             args.texture_ot_weight = 1.0
         elif args.appearance_loss_type == 'SlW':
