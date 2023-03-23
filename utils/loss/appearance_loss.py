@@ -83,29 +83,38 @@ class ClipLossImgToImg(torch.nn.Module):
         self.args = args
         self.model, self.preprocess = clip.load("ViT-B/32", device=args.DEVICE)
         self.toPIL = T.ToPILImage()
-        with torch.no_grad() :
-            self.target_text = clip.tokenize("bubbles").to(args.DEVICE)
-            self.target_features = self.model.encode_text(self.target_text)
-            self.target_features = self.target_features / self.target_features.norm(dim=1, keepdim=True)
+        #with torch.no_grad() :
+        #    self.target_text = clip.tokenize("bubbles").to(args.DEVICE)
+        #    self.target_features = self.model.encode_text(self.target_text)
+        #    self.target_features = self.target_features / self.target_features.norm(dim=1, keepdim=True)
         
 
     def forward(self, target_images, generated_images):
 
         #target_images_processed = torch.empty((target_images.shape[0], target_images.shape[1], 224, 224))
-        generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
-        for i in range(target_images.shape[0]):
-            #target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
-            generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
+        #generated_images_processed = torch.empty((generated_images.shape[0], generated_images.shape[1], 224, 224))
+        #for i in range(target_images.shape[0]):
+        #    target_images_processed[i] = self.preprocess(self.toPIL(target_images[i])).unsqueeze(0).to(self.args.DEVICE)
+        #    generated_images_processed[i] = self.preprocess(self.toPIL(generated_images[i])).unsqueeze(0).to(self.args.DEVICE)
 
-        #target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
+        transforms = torch.nn.Sequential(
+            T.Resize(256),
+            T.CenterCrop(224),
+            T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
+        )
+        
+        target_images_processed = transforms(target_images)
+        generated_images_processed = transforms(generated_images)
+
+        target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
         generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
 
         # normalized features
-        #target_features = target_features / target_features.norm(dim=1, keepdim=True)
+        target_features = target_features / target_features.norm(dim=1, keepdim=True)
         generated_features = generated_features / generated_features.norm(dim=1, keepdim=True)
 
-        # cosine similarity as logits
-        cos_per_generated = generated_features @ self.target_features.t()
+        # cosine similarity
+        cos_per_generated = generated_features @ target_features.t()
 
         # shape = [global_batch_size, global_batch_size]
         return (- cos_per_generated.mean(axis = 1) + 1).sum()
