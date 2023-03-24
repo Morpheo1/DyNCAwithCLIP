@@ -2,6 +2,8 @@ import numpy as np
 import PIL
 import io
 import base64
+
+from IPython.core.display_functions import display
 from IPython.display import Image as Image, clear_output
 import matplotlib.pyplot as plt
 

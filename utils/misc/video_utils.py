@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 import moviepy.editor as mvp
+from IPython.core.display_functions import display
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 from tqdm import tqdm
 
