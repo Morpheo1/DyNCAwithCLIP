@@ -326,6 +326,7 @@ def get_motion_vector_field_by_name(motion_vector_field_name, img_size=[128, 128
                 target_motion_vec[0, 1, center_x + i, center_y + j] = torch.sin(motion_rad)
     else:
         print('Not Implemented Motion Field')
+        raise Exception('Not Implemented Motion Field')
         exit()
 
     return target_motion_vec

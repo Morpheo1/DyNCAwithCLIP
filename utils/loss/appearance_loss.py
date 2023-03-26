@@ -85,7 +85,7 @@ class AppearanceLoss(torch.nn.Module):
                 loss_func = self.loss_mapper[loss_name]
                 if self.cliptxt_weight != 0:
                     loss += loss_weight * loss_func(target_text, generated_images)
-                else :
+                else:
                     loss += loss_weight * loss_func(target_images, generated_images)
         loss /= len(generated_image_list)
         return loss, None, None
