@@ -14,7 +14,10 @@ class VectorFieldMotionLoss(torch.nn.Module):
         
         assert args.motion_vector_field_name is not None
         print('Target Vector Field: ', args.motion_vector_field_name)
-        target_motion_vec = get_motion_vector_field_by_name(args.motion_vector_field_name, img_size=args.motion_img_size)
+        if args.motion_vector_field_name == 'custom':
+            target_motion_vec = args.loaded_vector_field
+        else :
+            target_motion_vec = get_motion_vector_field_by_name(args.motion_vector_field_name, img_size=args.motion_img_size)
         target_motion_vec = target_motion_vec.to(args.DEVICE)
 
         args.target_motion_vec = target_motion_vec

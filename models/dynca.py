@@ -27,7 +27,7 @@ class DyNCA(torch.nn.Module):
         Device used for performing the computation.
     """
 
-    def __init__(self, c_in, c_out, fc_dim=96,
+    def __init__(self, c_in, c_out, mask, fc_dim=96,
                  padding_mode='replicate',
                  seed_mode='zeros', pos_emb='CPE',
                  perception_scales=[0],
@@ -36,6 +36,7 @@ class DyNCA(torch.nn.Module):
         super().__init__()
         self.c_in = c_in
         self.c_out = c_out
+        self.mask = mask
         self.perception_scales = perception_scales
         self.fc_dim = fc_dim
         self.padding_mode = padding_mode
@@ -118,7 +119,8 @@ class DyNCA(torch.nn.Module):
         y = self.w2(F.relu(self.w1(y_percept)))
         b, c, h, w = y.shape
 
-        update_mask = (torch.rand(b, 1, h, w) + update_rate).floor().to(self.device)
+        #self.mask should be of shape [1, c, h, w]
+        update_mask = ((torch.rand(b, 1, h, w) + update_rate) * self.mask).floor().to(self.device)
 
         x = x + y * update_mask
 
