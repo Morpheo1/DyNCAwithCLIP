@@ -2,7 +2,6 @@
 
 .idea
 
-*.pth
 *.pt
 *.mp4
 *.avi
@@ -10,7 +9,6 @@
 *.zip
 *.png
 
-pretrained_models/
 out/
 
 # Byte-compiled / optimized / DLL files
