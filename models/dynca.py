@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class DyNCA(torch.nn.Module):
-    SEED_MODES = ['random', 'center_on', 'zeros']
+    SEED_MODES = ['random', 'center_on', 'zeros', 'custom']
     """
     Parameters
     ----------
@@ -132,7 +132,7 @@ class DyNCA(torch.nn.Module):
     def to_rgb(self, x):
         return x[:, :self.c_out, ...] * 2.0
 
-    def seed(self, n, size=128):
+    def seed(self, n, size=128, img=None):
         if isinstance(size, int):
             size_x, size_y = size, size
         else:
@@ -150,6 +150,9 @@ class DyNCA(torch.nn.Module):
             torch.manual_seed(self.random_seed)
             torch.cuda.manual_seed_all(self.random_seed)
             sd = (torch.rand(1, self.c_in, size_y, size_x) - 0.5)
+        elif self.seed_mode == 'custom':
+            sd = torch.zeros(n, self.c_in, size_y, size_x).to(self.device)
+            sd[:, :3, :, :] = img[0, :, :, :]
         else:
             sd = None
 
