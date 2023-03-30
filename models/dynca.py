@@ -152,7 +152,7 @@ class DyNCA(torch.nn.Module):
             sd = (torch.rand(1, self.c_in, size_y, size_x) - 0.5)
         elif self.seed_mode == 'custom':
             sd = torch.zeros(n, self.c_in, size_y, size_x).to(self.device)
-            sd[:, :3, :, :] = img[0, :, :, :] * (1 - self.mask[:, :3, :, :])
+            sd[:, :3, :, :] = (img[0, :, :, :].cpu() * (1 - self.mask[:, :3, :, :])).to(self.device)
         else:
             sd = None
 
