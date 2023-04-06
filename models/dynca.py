@@ -6,8 +6,7 @@ import cv2
 
 def rotateFilter(filter, theta) :
     ogFilter = cv2.copyMakeBorder(filter.numpy(), 1, 1, 1, 1, cv2.BORDER_CONSTANT, (0,0,0))
-    center = tuple(np.array(ogFilter.shape[1::-1]) // 2)
-    M = cv2.getRotationMatrix2D(center, theta, 1)
+    M = cv2.getRotationMatrix2D((2,2), theta, 1)
     rotatedFilter = cv2.warpAffine(ogFilter, M, ogFilter.shape, flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
     return torch.from_numpy(rotatedFilter)
 
