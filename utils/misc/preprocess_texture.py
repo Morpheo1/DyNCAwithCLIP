@@ -5,12 +5,35 @@ from PIL import Image, ImageSequence
 import cv2
 import random
 import copy
+from utils.loss.appearance_loss import get_middle_feature_vgg
 
 
-def preprocess_style_image(style_img, model_type='vgg', img_size=[128, 128], batch_size=4, crop=True):
-    if (model_type == 'vgg'):
+def preprocess_style_image(style_img, model_type='vgg', img_size=(128, 128), batch_size=4, crop=True):
+    """
+    Processes Images to transform them to the required format.
+
+    Parameters
+    ----------
+    style_img: PIL.Image.Image
+        Input image (in PIL.Image.Image format)
+    model_type: str
+        if model type is not vgg, then nothing happens
+    img_size: List[int]
+        targeted image size, excluding channels and batches
+    batch_size: int
+        how many times to repeat the image
+    crop: bool
+        Whether to crop or add black lines when reshaping image
+
+    Returns
+    -------
+    Pytorch tensor
+        Reshaped image as a Tensor of size ('batch_size', channels, img_size[0], img_size[1])
+
+    """
+    if model_type == 'vgg':
         w, h = style_img.size
-        if (w == h):
+        if w == h:
             style_img = style_img.resize((img_size[0], img_size[1]))
             style_img = style_img.convert('RGB')
             # with torch.no_grad():
@@ -22,7 +45,7 @@ def preprocess_style_image(style_img, model_type='vgg', img_size=[128, 128], bat
                 style_img = np.array(style_img)
                 h, w, _ = style_img.shape
                 cut_pixel = abs(w - h) // 2
-                if (w > h):
+                if w > h:
                     style_img = style_img[:, cut_pixel:w - cut_pixel, :]
                 else:
                     style_img = style_img[cut_pixel:h - cut_pixel, :, :]
@@ -41,7 +64,6 @@ def preprocess_style_image(style_img, model_type='vgg', img_size=[128, 128], bat
                 square_img.paste(style_img, (x_offset, y_offset))
                 style_img = square_img
 
-
         style_img = np.float32(style_img) / 255.0
         style_img = torch.as_tensor(style_img)
         style_img = style_img[None, ...]
@@ -50,7 +72,24 @@ def preprocess_style_image(style_img, model_type='vgg', img_size=[128, 128], bat
         return input_img_style  # , style_img_tensor
 
 
-def preprocess_vector_field(vector_field, img_size=[128, 128], crop=True):
+def preprocess_vector_field(vector_field, img_size=(128, 128), crop=True):
+    """
+    Similar to preprocess_style_image, but for vector fields
+
+    Parameters
+    ----------
+    vector_field : Tensor
+        Tensor of size (b, c, h, w)
+    img_size :
+        Target size excluding batch and channels
+    crop : bool
+        Whether to crop or add black lines when reshaping image
+    Returns
+    -------
+    Tensor
+        Reshaped Tensor of size ('batch_size', channels, img_size[0], img_size[1])
+    """
+
     b, c, h, w = vector_field.shape
 
     if w == h:
@@ -65,44 +104,57 @@ def preprocess_vector_field(vector_field, img_size=[128, 128], crop=True):
             target_motion_vec = torch.nn.functional.interpolate(target_motion_vec, size=img_size)
 
         else:
-            ratio = min(img_size[0]/h, img_size[1]/w)
+            ratio = min(img_size[0] / h, img_size[1] / w)
             h_s = int(h * ratio)
             w_s = int(w * ratio)
-            vector_field_resized = torch.nn.functional.interpolate(vector_field, size=[int(h * ratio), int(w * ratio)]) # reduce size
+            vector_field_resized = torch.nn.functional.interpolate(vector_field,
+                                                                   size=[int(h * ratio), int(w * ratio)])  # reduce size
             max_dim = max(img_size)
             x_offset = (max_dim - w_s) // 2
             y_offset = (max_dim - h_s) // 2
             print(f"vector field width {w_s} height {h_s} max_dim {max_dim} x_offset {x_offset} y_offset {y_offset}")
-
-            # Paste the original vector field in the center of the new vector field
-            vector_shape = img_size
             print(x_offset)
             target_motion_vec = torch.zeros(b, c, max_dim, max_dim)
-            if (x_offset == 0):
+            if x_offset == 0:
                 target_motion_vec[:, :, y_offset:-y_offset, :] = vector_field_resized
-            elif (y_offset == 0):
+            elif y_offset == 0:
                 target_motion_vec[:, :, :, x_offset:-x_offset] = vector_field_resized
             print(target_motion_vec.shape)
     return target_motion_vec
 
-def preprocess_video(video_path, img_size=[128, 128], normalRGB=False):
-    if ('.gif' in video_path):
+
+def preprocess_video(video_path, img_size=(128, 128), normalRGB=False):
+    """
+    Creates a Tensor from the given video path of the specified size: #frames_in_video * #channels * img_size
+
+    Parameters
+    ----------
+    video_path : str
+        path of the video file, which can be a '.gif', '.avi', or '.mp4'
+    img_size :List[int]
+        targeted image size, excluding channels and batches
+    normalRGB : bool
+        if the provided image needs to be scaled to [-1,1]
+    Returns
+    -------
+    Tensor
+        Stacked tensor of shape (#frames, #channels, img_size[0], img_size[1])
+    """
+
+    train_image_seq = []
+    if '.gif' in video_path:
         gif_video = Image.open(video_path)
-        train_image_seq = []
         index = 0
         for frame in ImageSequence.Iterator(gif_video):
             cur_frame_tensor = preprocess_style_image(frame, 'vgg', img_size)
-            if (normalRGB == False):
+            if not normalRGB:
                 cur_frame_tensor = cur_frame_tensor * 2.0 - 1.0
-
             train_image_seq.append(cur_frame_tensor)
             index += 1
         train_image_seq = torch.stack(train_image_seq, dim=2)[0]  # Output shape is [C, T, H, W]
         # print(f'Total Training Frames: {index}')
-        return train_image_seq
-    elif ('.avi' in video_path or '.mp4' in video_path):
+    elif '.avi' in video_path or '.mp4' in video_path:
         cap = cv2.VideoCapture(video_path)
-        train_image_seq = []
         index = 0
         while cap.isOpened():
             ret, frame = cap.read()
@@ -116,7 +168,7 @@ def preprocess_video(video_path, img_size=[128, 128], normalRGB=False):
             frame = Image.fromarray(frame.astype(np.uint8)).convert('RGB')
 
             cur_frame_tensor = preprocess_style_image(frame, 'vgg', img_size)
-            if (normalRGB == False):
+            if not normalRGB:
                 cur_frame_tensor = cur_frame_tensor * 2.0 - 1.0
 
             train_image_seq.append(cur_frame_tensor)
@@ -124,7 +176,8 @@ def preprocess_video(video_path, img_size=[128, 128], normalRGB=False):
 
         cap.release()
         cv2.destroyAllWindows()
-        return train_image_seq
+    train_image_seq = train_image_seq.permute(1, 0, 2, 3)
+    return train_image_seq
 
 
 def select_frame(args, image_seq, vgg_model):
@@ -156,8 +209,28 @@ def select_frame(args, image_seq, vgg_model):
 
 
 def get_train_image_seq(args, **kwargs):
-    if (
-            '.png' in args.target_appearance_path or '.jpg' in args.target_appearance_path or '.jpeg' in args.target_appearance_path):
+    """
+
+    Parameters
+    ----------
+    args : Args
+        class instance containing all the parameters
+    kwargs : Any
+        function that calculates flow and returns (_, flow)
+
+    Returns
+    -------
+    train_image_seq_texture: Tensor
+        video from which we extract the appearance, as a Tensor of shape (#frames, #channels, args.img_size).
+    train_image_texture: Tensor
+        Chosen frame from texture video (1, #channels, args.img_size).
+    train_image_texture_save: PIL.Image
+        PIL image of train_image_texture.
+    frame_idx_texture: int
+        chosen frame number.
+    """
+
+    if '.png' in args.target_appearance_path or '.jpg' in args.target_appearance_path or '.jpeg' in args.target_appearance_path:
         style_img = Image.open(args.target_appearance_path)
         train_image_seq_texture = preprocess_style_image(style_img, model_type='vgg', img_size=args.img_size)
         train_image_seq_texture = train_image_seq_texture[0:1].to(args.DEVICE)  # 1, C, H, W
@@ -166,55 +239,31 @@ def get_train_image_seq(args, **kwargs):
         train_image_texture = copy.deepcopy(train_image_seq_texture[frame_idx_texture])
         train_image_texture_save = transforms.ToPILImage()((train_image_texture + 1.0) / 2.0)
     else:
+        # it is a video
         flow_func = kwargs.get('flow_func', None)
         train_image_seq_sort = preprocess_video(args.target_dynamics_path, img_size=(256, 256))
-        train_image_seq_sort = train_image_seq_sort.permute(1, 0, 2, 3).to(args.DEVICE)
+        train_image_seq_sort = train_image_seq_sort.to(args.DEVICE)
         video_length = len(train_image_seq_sort)
         frame_weight_list = []
         with torch.no_grad():
             for idx in range(video_length - 1):
                 image1 = train_image_seq_sort[idx:idx + 1]
                 image2 = train_image_seq_sort[idx + 1:idx + 2]
-
                 _, flow = flow_func(image1, image2, size=(256, 256))
+                # mean strength of the flow between the two images
                 motion_strength = torch.mean(torch.norm(flow, dim=1)).item()
                 frame_weight_list.append(motion_strength)
         total_strength = sum(frame_weight_list)
         frame_weight_list = [x / total_strength for x in frame_weight_list]
+        # get video from which we extract the appearance
         train_image_seq_texture = preprocess_video(args.target_appearance_path, img_size=args.img_size)
-        train_image_seq_texture = train_image_seq_texture.permute(1, 0, 2, 3).to(args.DEVICE)  # T, C, H, W
+        train_image_seq_texture = train_image_seq_texture.to(args.DEVICE)  # T, C, H, W
         texture_video_length = len(train_image_seq_texture)
+        # get frame where there was the most movement related to next frame
         frame_idx_texture = np.argmax(frame_weight_list)
-        if (frame_idx_texture >= texture_video_length):
+        if frame_idx_texture >= texture_video_length:
             frame_idx_texture = random.randint(0, texture_video_length - 1)
+        # get frame of texture video that correspond to the moment that changes the most
         train_image_texture = copy.deepcopy(train_image_seq_texture[frame_idx_texture])
         train_image_texture_save = transforms.ToPILImage()((train_image_texture + 1.0) / 2.0)
     return train_image_seq_texture, train_image_texture, train_image_texture_save, frame_idx_texture
-
-
-def get_middle_feature_vgg(args, imgs, vgg_model, flatten=False, include_image_as_feat=False):
-    size = args.img_size
-    DEVICE = args.DEVICE
-    img_shape = imgs.shape[2]
-    # if (img_shape == size[0]):
-    #     pass
-    # else:
-    #     imgs = TF.resize(imgs, size)
-    style_layers = [1, 6, 11, 18, 25]  # 1, 6, 11, 18, 25
-    mean = torch.tensor([0.485, 0.456, 0.406])[:, None, None].to(DEVICE)
-    std = torch.tensor([0.229, 0.224, 0.225])[:, None, None].to(DEVICE)
-    x = (imgs - mean) / std
-    b, c, h, w = x.shape
-    if (include_image_as_feat):
-        features = [x.reshape(b, c, h * w)]
-    else:
-        features = []
-    for i, layer in enumerate(vgg_model[:max(style_layers) + 1]):
-        x = layer(x)
-        if i in style_layers:
-            b, c, h, w = x.shape
-            if flatten:
-                features.append(x.reshape(b, c, h * w))
-            else:
-                features.append(x)
-    return features

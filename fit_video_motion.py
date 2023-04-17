@@ -47,7 +47,8 @@ parser.add_argument("--video_length", type=float, help="Video length in seconds 
 parser.add_argument("--video_only", action='store_true', help="Only generate video using pretrained model",
                     dest='video_only')
 # Target
-parser.add_argument("--target_dynamics_path", type=str, help="Path to style video", default='./data/VideoMotion/Motion/water_3.gif',
+parser.add_argument("--target_dynamics_path", type=str, help="Path to style video",
+                    default='./data/VideoMotion/Motion/water_3.gif',
                     dest='target_dynamics_path')
 parser.add_argument("--target_appearance_path", type=str, help="Path to style image",
                     default='./data/VideoMotion/Appearance/water_3.gif',
@@ -124,10 +125,10 @@ parser.add_argument("--lr_decay_step", nargs='+', action='append', type=int,
 parser.add_argument("--DEVICE", type=str, help="Cuda device to use", default="cuda:0", dest='DEVICE')
 
 args = parser.parse_args()
-if(len(args.lr_decay_step) == 0):
-    args.lr_decay_step = [[1000,2000]]
-if(len(args.nca_perception_scales) == 0):
-    args.nca_perception_scales = [[0,1]]
+if (len(args.lr_decay_step) == 0):
+    args.lr_decay_step = [[1000, 2000]]
+if (len(args.nca_perception_scales) == 0):
+    args.nca_perception_scales = [[0, 1]]
 
 DEVICE = torch.device(args.DEVICE if torch.cuda.is_available() else "cpu")
 
@@ -138,7 +139,7 @@ c_out = 3
 
 print('Preparing Style Video')
 train_image_seq = preprocess_video(args.target_dynamics_path, img_size=args.img_size)
-train_image_seq = train_image_seq.permute(1, 0, 2, 3).to(DEVICE)  # T, C, H, W
+train_image_seq = train_image_seq.to(DEVICE)  # T, C, H, W
 
 (train_image_seq_texture, train_image_texture,
  train_image_texture_save, frame_idx_texture) = get_train_image_seq(
@@ -277,8 +278,7 @@ for i in pbar:
         if (seed_injection == False):
             loss_log_dict[loss_name].append(min(batch_loss_log_dict[loss_name], 15.0))
 
-    if (i == args.nca_warmup_iter and args.video_motion_loss_weight > 0.0): 
-
+    if (i == args.nca_warmup_iter and args.video_motion_loss_weight > 0.0):
         DynamicTextureLoss.set_loss_weight(loss_name='video_motion', loss_num=args.video_motion_loss_weight,
                                            medium_mt=np.median(loss_log_dict[
                                                                    'video_motion']))  # np.median(loss_log_dict['video_motion'])
@@ -397,7 +397,7 @@ def synthesize_video(args, nca_model, video_length, output_dir, train_image_seq_
                         target_motion_image_list.append(train_image_seq[j + 1:j + 2])
                         input_dict['target_motion_image_list'] = target_motion_image_list
                         video_motion_loss, _, _ = loss_class.loss_mapper['video_motion'](input_dict,
-                                                                                             return_summary=False)
+                                                                                         return_summary=False)
                         cur_video_motion_loss_avg += video_motion_loss.item()
                     cur_video_motion_loss_avg /= (motion_video_length - 1)
 

@@ -24,23 +24,21 @@ def show_progress(block_num, block_size, total_size):
 
 def _load_MSOEmultiscale_model(model_name, models_path, download=False):
     assert model_name == 'two_stream_dynamic_model'
-    if not os.path.exists(f'{models_path}/two_stream/{model_name}.pth'):
+    output_dir = os.path.join(models_path, "two_stream")
+    output = os.path.join(output_dir, model_name+".pth")
+    if not os.path.exists(output):
         download = True
 
     if download:
-
-        if os.path.exists(f'{models_path}/two_stream/{model_name}.pth'):
-            os.system(f"rm -rf {models_path}/two_stream")
         import gdown
         url = 'https://drive.google.com/uc?id=10qoSx0P3TJzf17bUN42x1ZAFNjr-J69f'
-        output = f'{models_path}/two_stream/{model_name}.pth'
-        os.system(f"mkdir -p {models_path}/two_stream/")
+        os.makedirs(output_dir, exist_ok=True)
         gdown.download(url, output, quiet=False)
 
     from models.MSOEmultiscale import MSOEmultiscale
 
     model = MSOEmultiscale()
-    states_dict = torch.load(f'{models_path}/two_stream/{model_name}.pth')
+    states_dict = torch.load(output)
     model.load_state_dict(states_dict)
     model = model.eval()
 

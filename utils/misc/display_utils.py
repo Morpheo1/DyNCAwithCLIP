@@ -12,7 +12,7 @@ def plot_train_log(log_dict, plt_number, save_path):
     plt_idx = 1
     for log_name in log_dict.keys():
         loss_log = log_dict[log_name][0]
-        if(len(loss_log) == 0):
+        if len(loss_log) == 0:
             continue
         y_scale = log_dict[log_name][1]
         ylim = log_dict[log_name][2]
@@ -20,14 +20,13 @@ def plot_train_log(log_dict, plt_number, save_path):
         plt.subplot(1, plt_number, plt_idx)
         plt.plot(loss_log, '.', alpha=0.1)
         plt.title(log_name)
-        if (y_scale):
+        if y_scale:
             plt.yscale('log')
-        if (ylim):
+        if ylim:
             plt.ylim(np.min(loss_log), max(loss_log))
         plt_idx += 1
     plt.savefig(save_path)
     
-
 
 def np2pil(a):
     if a.dtype in [np.float32, np.float64]:
@@ -66,11 +65,11 @@ def imshow(a, fmt='jpeg', _clear_output=False):
     display(Image(data=imencode(a, fmt)))
 
 
-def save_train_image(imgs, save_path, return_img = False):
+def save_train_image(imgs, save_path, return_img=False):
     imgs = imgs.transpose(0, 2, 3, 1)
+    imgs = imgs[:, :, :, :3]
     imgs = np.hstack(imgs)
     imgs = np2pil(imgs)
-    if(return_img):
+    if return_img:
         return imgs
-    imgs.save(save_path, quality = 100)
-    
+    imgs.save(save_path, quality=100)
