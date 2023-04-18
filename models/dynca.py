@@ -97,6 +97,11 @@ class DyNCA(torch.nn.Module):
         y2 = _perceive_with_torch(x, self.sobel_filter_y)
         y3 = _perceive_with_torch(x, self.laplacian_filter)
 
+        print(x.shape)
+        print(y1.shape)
+        print(y2.shape)
+        print(y3.shape)
+
         tensor_list = [x]
         tensor_list += [y1, y2, y3]
 
@@ -164,6 +169,7 @@ class DyNCA(torch.nn.Module):
         elif self.seed_mode == 'custom':
             sd = torch.zeros(n, self.c_in, size_y, size_x).to(self.device)
             sd[:, :3, :, :] = (img[0, :, :, :].cpu() * (1 - self.mask[:, :3, :, :])).to(self.device)
+            return sd
         else:
             sd = None
 
