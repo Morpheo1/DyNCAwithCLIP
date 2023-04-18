@@ -90,7 +90,7 @@ class DyNCA(torch.nn.Module):
 
         def _perceive_with_torch(z, weight):
             conv_weights = weight.reshape(1, 1, 5, 5).repeat(self.c_in, 1, 1, 1)
-            z = F.pad(z, [1, 1, 1, 1], self.padding_mode)
+            z = F.pad(z, [2, 2, 2, 2], self.padding_mode)
             return F.conv2d(z, conv_weights, groups=self.c_in)
 
         y1 = _perceive_with_torch(x, self.sobel_filter_x)
