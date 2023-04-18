@@ -97,11 +97,6 @@ class DyNCA(torch.nn.Module):
         y2 = _perceive_with_torch(x, self.sobel_filter_y)
         y3 = _perceive_with_torch(x, self.laplacian_filter)
 
-        print(x.shape)
-        print(y1.shape)
-        print(y2.shape)
-        print(y3.shape)
-
         tensor_list = [x]
         tensor_list += [y1, y2, y3]
 
