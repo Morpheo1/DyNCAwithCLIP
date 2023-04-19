@@ -272,4 +272,4 @@ class VFE(nn.Module):
         self.cached_vfenc = emb.repeat(batch_size, 1, 1, 1)
         self.last_tensor_shape = tensor.shape
 
-        return self.cached_penc
+        return self.cached_vfenc
