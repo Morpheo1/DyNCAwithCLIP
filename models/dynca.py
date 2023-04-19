@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.transforms.functional as fn
 import cv2
 
 def rotateFilter(filter, theta) :
@@ -33,10 +34,12 @@ class DyNCA(torch.nn.Module):
         Device used for performing the computation.
     """
 
-    def __init__(self, c_in, c_out, mask, fc_dim=96,
+    def __init__(self, c_in, c_out, mask,
+                 target_vector_field = None, 
+                 fc_dim=96,
                  padding_mode='replicate',
                  theta_filters = 0,
-                 seed_mode='zeros', pos_emb='CPE',
+                 seed_mode='zeros', pos_emb='CPE', vf_emb=None
                  perception_scales=[0],
                  device=torch.device("cuda:0")):
 
@@ -51,6 +54,7 @@ class DyNCA(torch.nn.Module):
         self.seed_mode = seed_mode
         self.random_seed = 42
         self.pos_emb = pos_emb
+        self.vf_emb = vf_emb
         self.device = device
         self.expand = 4
 
@@ -60,6 +64,13 @@ class DyNCA(torch.nn.Module):
             self.c_cond += 2
         else:
             self.pos_emb_2d = None
+        if self.vf_emb == 'VFE':
+            self.vf_emb_2d = VFE(target_vector_field)
+            self.c_cond += 2
+        else:
+            self.vf_emb_2d = None
+
+        
 
         self.w1 = torch.nn.Conv2d(self.c_in * self.expand + self.c_cond, self.fc_dim, 1, device=self.device)
         torch.nn.init.xavier_normal_(self.w1.weight, gain=0.2)
@@ -107,7 +118,7 @@ class DyNCA(torch.nn.Module):
 
         return y
 
-    def perceive_multiscale(self, x, pos_emb_mat=None):
+    def perceive_multiscale(self, x, pos_emb_mat=None, vf_emb_mat = None):
         perceptions = []
         y = 0
         for scale in self.perception_scales:
@@ -119,12 +130,18 @@ class DyNCA(torch.nn.Module):
 
         if pos_emb_mat is not None:
             y = torch.cat([y, pos_emb_mat], dim=1)
+        if vf_emb_mat is not None:
+            y = torch.cat([y, vf_emb_mat], dim=1)
 
         return y
 
     def forward(self, x, update_rate=0.5, return_perception=False):
         if self.pos_emb_2d:
             y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x))
+        if self.vf_emb_2d:
+            y_percept = self.perceive_multiscale(x, vf_emb_mat=self.vf_emb_2d(x))
+        if self.pos_emb_2d and self.vf_emb_2d:
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x))
         else:
             y_percept = self.perceive_multiscale(x)
         y = self.w2(F.relu(self.w1(y_percept)))
@@ -219,6 +236,40 @@ class CPE2D(nn.Module):
         emb[1: 2] = ys
 
         self.cached_penc = emb.unsqueeze(0).repeat(batch_size, 1, 1, 1)
+        self.last_tensor_shape = tensor.shape
+
+        return self.cached_penc
+
+class VFE(nn.Module):
+    """
+    Vector Field Encoding
+    """
+
+    def __init__(self, targetVectorField):
+        super(VFE, self).__init__()
+        self.cached_vfenc = None
+        self.last_tensor_shape = None
+        self.targetVectorField = targetVectorField
+
+    def forward(self, tensor):
+        """
+        :param tensor: A 4d tensor of size (batch_size, ch, x, y)
+        :return: Vector Field Encoding Matrix of size (batch_size, 2, x, y)
+        """
+        if len(tensor.shape) != 4:
+            raise RuntimeError("The input tensor has to be 4d!")
+
+        if self.cached_vfenc is not None and self.last_tensor_shape == tensor.shape:
+            return self.cached_vfenc
+
+        self.cached_vfenc = None
+        batch_size, orig_ch, h, w = tensor.shape
+        if([h, w] != self.targetVectorField.shape[-2:]) :
+            emb = fn.resize(self.targetVectorField, size=[h, w])
+        else :
+            emb = self.targetVectorField
+
+        self.cached_vfenc = emb.repeat(batch_size, 1, 1, 1)
         self.last_tensor_shape = tensor.shape
 
         return self.cached_penc
