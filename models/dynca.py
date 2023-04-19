@@ -39,7 +39,7 @@ class DyNCA(torch.nn.Module):
                  fc_dim=96,
                  padding_mode='replicate',
                  theta_filters = 0,
-                 seed_mode='zeros', pos_emb='CPE', vf_emb=None
+                 seed_mode='zeros', pos_emb='CPE', vf_emb=None,
                  perception_scales=[0],
                  device=torch.device("cuda:0")):
 
