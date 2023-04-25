@@ -18,10 +18,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+import torch
+import torchvision.transforms
 
 from PIL import Image
 import io
 
+from typing import List
 
 def plot_vec_field(vector_field, name="target", vmin=None, vmax=None):
     """
@@ -33,17 +36,17 @@ def plot_vec_field(vector_field, name="target", vmin=None, vmax=None):
 
     _, H, W = vector_field.shape
     norm = np.sqrt(vector_field[0, ::-1] ** 2 + vector_field[1, ::-1] ** 2)
-    
+
     if vmin is None:
         vmin = norm.min()
     if vmax is None:
         vmax = norm.max()
-    
+
     normalize = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax, clip=False)
 
     fig = plt.figure(figsize=(5, 5))
     ax = fig.add_subplot(111, projection="rectilinear")
-    title = f"{name} vector field."                    
+    title = f"{name} vector field."
     xs = np.linspace(-1.0, 1.0, W)
     ys = np.linspace(-1.0, 1.0, H)
 
@@ -56,20 +59,19 @@ def plot_vec_field(vector_field, name="target", vmin=None, vmax=None):
         linewidth=(norm + 0.05) / 1.25,
         norm=normalize,
         density=0.75,
-#         broken_streamlines=False,
-#         minlength=0.3,
+        #         broken_streamlines=False,
+        #         minlength=0.3,
         # vmin=2.0, vmax=2.0,
     )
-#     print(norm.min(), norm.max())
-#     ax.set_xlabel("X")
-#     ax.set_ylabel("Y")
-#     ax.set_title(title)
+    #     print(norm.min(), norm.max())
+    #     ax.set_xlabel("X")
+    #     ax.set_ylabel("Y")
+    #     ax.set_title(title)
     # ax.axis('equal', adjustable='box')
-    
 
     fig.colorbar(sp.lines)
     fig.canvas.draw()
-    
+
     frame = plt.gca()
     frame.axes.xaxis.set_ticklabels([])
     frame.axes.yaxis.set_ticklabels([])
@@ -80,10 +82,10 @@ def plot_vec_field(vector_field, name="target", vmin=None, vmax=None):
     fig.savefig(buf)
     plt.clf()
     plt.close()
-    
+
     buf.seek(0)
     img = Image.open(buf)
-    
+
     return img
 
 
@@ -194,3 +196,40 @@ def flow_to_image(flow_uv, clip_flow=None, convert_to_bgr=False, rad_max=None):
     u = u / (rad_max + epsilon)
     v = v / (rad_max + epsilon)
     return flow_uv_to_colors(u, v, convert_to_bgr)
+
+
+def flow_to_mask(flow_list: List[torch.Tensor], eps: float = 0.05, c: int = 12, smoothness: int = 0):
+    """
+    Creates a mask from a given list of flows
+
+    Parameters
+    ----------
+
+    flow_list : List[torch.Tensor]
+        List of flow tensors
+    eps : float
+        how close to zero do we consider a vector to be zero in the mask
+    c : int
+        number of channels
+    Returns
+    -------
+    Tensor
+        The mask in shape [1, 12, flow.shape]
+    """
+    total_flow = torch.zeros_like(flow_list[0])
+    for flow in flow_list:
+        total_flow += torch.abs(flow)
+    total_flow /= len(flow_list)
+    total_flow = total_flow.cpu()
+    # mask making
+    update_mask = torch.where((torch.abs(total_flow[0, 0]) < eps) & (torch.abs(total_flow[0, 1]) < eps), 0.0, 1.0)[None, None, :, :]
+    if smoothness > 0:
+        update_mask = torchvision.transforms.GaussianBlur(kernel_size=(smoothness, smoothness), sigma=3)(update_mask)
+    print("Vector Mask: ")
+    plt.imshow(update_mask[0].permute(1, 2, 0), vmin=0)
+    plt.axis("off")
+    plt.show()
+    ones = torch.ones(1, c - 3, total_flow.shape[2], total_flow.shape[3])  # .to(update_mask.get_device())
+    update_mask = torch.cat((update_mask, update_mask, update_mask, ones), 1)
+
+    return update_mask

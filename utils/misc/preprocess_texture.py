@@ -123,7 +123,7 @@ def preprocess_vector_field(vector_field, img_size=(128, 128), crop=True):
     return target_motion_vec
 
 
-def preprocess_video(video_path, img_size=(128, 128), normalRGB=False):
+def preprocess_video(video_path, img_size=(128, 128), normalRGB=False, single_frame=-1):
     """
     Creates a Tensor from the given video path of the specified size: #frames_in_video * #channels * img_size
 
@@ -135,6 +135,8 @@ def preprocess_video(video_path, img_size=(128, 128), normalRGB=False):
         targeted image size, excluding channels and batches
     normalRGB : bool
         if the provided image needs to be scaled to [-1,1]
+    single_frame : int
+        if not -1, returns only this processed frame
     Returns
     -------
     Tensor
@@ -145,7 +147,15 @@ def preprocess_video(video_path, img_size=(128, 128), normalRGB=False):
     if '.gif' in video_path:
         gif_video = Image.open(video_path)
         index = 0
+        if single_frame >= 0:
+            frames = gif_video.n_frames
+            assert single_frame < frames, f"chosen frame greater than total number of frames ({single_frame}/{frames})"
+
         for frame in ImageSequence.Iterator(gif_video):
+            if single_frame >= 0:
+                if single_frame != index:
+                    index += 1
+                    continue
             cur_frame_tensor = preprocess_style_image(frame, 'vgg', img_size)
             if not normalRGB:
                 cur_frame_tensor = cur_frame_tensor * 2.0 - 1.0
@@ -156,11 +166,20 @@ def preprocess_video(video_path, img_size=(128, 128), normalRGB=False):
     elif '.avi' in video_path or '.mp4' in video_path:
         cap = cv2.VideoCapture(video_path)
         index = 0
+        if single_frame >= 0:
+            frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            assert single_frame < frames, f"chosen frame greater than total number of frames ({single_frame}/{frames})"
+
         while cap.isOpened():
+
             ret, frame = cap.read()
             if not ret:
                 #                 print(f'Total Training Frames: {index}')
                 break
+            if single_frame >= 0:
+                if single_frame != index:
+                    index += 1
+                    continue
             index += 1
             #             if(index == 50):
             #                 break
@@ -181,6 +200,7 @@ def preprocess_video(video_path, img_size=(128, 128), normalRGB=False):
 
 
 def select_frame(args, image_seq, vgg_model):
+    # Not used anywhere
     cos_sim = torch.nn.CosineSimilarity(dim=1)
     image_seq_vgg = (image_seq + 1.0) / 2.0
     feature_map = get_middle_feature_vgg(args, image_seq_vgg, vgg_model)[-2:-1]
@@ -210,6 +230,8 @@ def select_frame(args, image_seq, vgg_model):
 
 def get_train_image_seq(args, **kwargs):
     """
+    Given an image or video, creates a preprocessed version of it,
+    a frame from it, an image version of it, and the index of the chosen frame.
 
     Parameters
     ----------
@@ -228,8 +250,10 @@ def get_train_image_seq(args, **kwargs):
         PIL image of train_image_texture.
     frame_idx_texture: int
         chosen frame number.
+    flow_list: List of Tensors
+        list of the calculated motion vector fields for each frame.
     """
-
+    flow_list = []
     if '.png' in args.target_appearance_path or '.jpg' in args.target_appearance_path or '.jpeg' in args.target_appearance_path:
         style_img = Image.open(args.target_appearance_path)
         train_image_seq_texture = preprocess_style_image(style_img, model_type='vgg', img_size=args.img_size)
@@ -241,7 +265,7 @@ def get_train_image_seq(args, **kwargs):
     else:
         # it is a video
         flow_func = kwargs.get('flow_func', None)
-        train_image_seq_sort = preprocess_video(args.target_dynamics_path, img_size=(256, 256))
+        train_image_seq_sort = preprocess_video(args.target_dynamics_path, img_size=args.img_size)
         train_image_seq_sort = train_image_seq_sort.to(args.DEVICE)
         video_length = len(train_image_seq_sort)
         frame_weight_list = []
@@ -249,10 +273,11 @@ def get_train_image_seq(args, **kwargs):
             for idx in range(video_length - 1):
                 image1 = train_image_seq_sort[idx:idx + 1]
                 image2 = train_image_seq_sort[idx + 1:idx + 2]
-                _, flow = flow_func(image1, image2, size=(256, 256))
+                _, flow = flow_func(image1, image2, size=args.img_size)
                 # mean strength of the flow between the two images
                 motion_strength = torch.mean(torch.norm(flow, dim=1)).item()
                 frame_weight_list.append(motion_strength)
+                flow_list.append(flow)
         total_strength = sum(frame_weight_list)
         frame_weight_list = [x / total_strength for x in frame_weight_list]
         # get video from which we extract the appearance
@@ -266,4 +291,5 @@ def get_train_image_seq(args, **kwargs):
         # get frame of texture video that correspond to the moment that changes the most
         train_image_texture = copy.deepcopy(train_image_seq_texture[frame_idx_texture])
         train_image_texture_save = transforms.ToPILImage()((train_image_texture + 1.0) / 2.0)
-    return train_image_seq_texture, train_image_texture, train_image_texture_save, frame_idx_texture
+        train_image_texture = train_image_texture[None, :, :, :]
+    return train_image_seq_texture, train_image_texture, train_image_texture_save, frame_idx_texture, flow_list

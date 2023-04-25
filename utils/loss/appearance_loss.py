@@ -67,7 +67,7 @@ class AppearanceLoss(torch.nn.Module):
 
     def forward(self, input_dict, return_summary=True):
         loss = 0.0
-        target_text = input_dict['target_text']
+
         target_image_list = input_dict['target_image_list']
         generated_image_list = input_dict['generated_image_list']
         for target_images, generated_images in zip(target_image_list, generated_image_list):
@@ -84,6 +84,7 @@ class AppearanceLoss(torch.nn.Module):
                 loss_weight = self.loss_weights[loss_name]
                 loss_func = self.loss_mapper[loss_name]
                 if self.cliptxt_weight != 0:
+                    target_text = input_dict['target_text']
                     loss += loss_weight * loss_func(target_text, generated_images)
                 else:
                     loss += loss_weight * loss_func(target_images, generated_images)
