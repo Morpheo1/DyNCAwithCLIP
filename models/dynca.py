@@ -5,8 +5,8 @@ import torch.nn.functional as F
 import torchvision.transforms.functional as fn
 
 def rotateFiltered(dx, dy, theta, device) :
-    c = torch.cos(theta).to(device)
-    s = torch.sin(theta).to(device)
+    c = np.cos(theta*np.pi / 180)
+    s = np.sin(theta* np.pi / 180)
     du1 = c * dx - s * dy
     du2 = s * dx + c * dy
     return du1, du2
