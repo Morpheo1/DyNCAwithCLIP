@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as fn
 
-def rotateFiltered(dx, dy, theta) :
-    c = torch.cos(theta)
-    s = torch.sin(theta)
+def rotateFiltered(dx, dy, theta, device) :
+    c = torch.cos(theta).to(device)
+    s = torch.sin(theta).to(device)
     du1 = c * dx - s * dy
     du2 = s * dx + c * dy
     return du1, du2
@@ -80,11 +80,11 @@ class DyNCA(torch.nn.Module):
         torch.nn.init.xavier_normal_(self.w2.weight, gain=0.1)
         torch.nn.init.zeros_(self.w2.bias)
 
-        self.sobel_filter_x = torch.FloatTensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]])
+        self.sobel_filter_x = torch.FloatTensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]]).to(self.device)
         self.sobel_filter_y = self.sobel_filter_x.T
 
-        self.identity_filter =  torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
-        self.laplacian_filter =  torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]])
+        self.identity_filter =  torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]]).to(self.device)
+        self.laplacian_filter =  torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]]).to(self.device)
 
     def perceive_torch(self, x, scale=0):
         assert scale in [0, 1, 2, 3, 4, 5]
@@ -101,7 +101,7 @@ class DyNCA(torch.nn.Module):
 
         dx = _perceive_with_torch(x, self.sobel_filter_x)
         dy = _perceive_with_torch(x, self.sobel_filter_y)
-        y1, y2 = rotateFiltered(dx, dy, self.theta)
+        y1, y2 = rotateFiltered(dx, dy, self.theta, self.device)
         y3 = _perceive_with_torch(x, self.laplacian_filter)
 
         tensor_list = [x]
