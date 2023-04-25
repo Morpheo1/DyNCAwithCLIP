@@ -3,13 +3,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as fn
-import cv2
 
-def rotateFilter(filter, theta) :
-    ogFilter = cv2.copyMakeBorder(filter.numpy(), 1, 1, 1, 1, cv2.BORDER_CONSTANT, (0,0,0))
-    M = cv2.getRotationMatrix2D((2,2), theta, 1)
-    rotatedFilter = cv2.warpAffine(ogFilter, M, ogFilter.shape, flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
-    return torch.from_numpy(rotatedFilter)
+def rotateFiltered(dx, dy, theta) :
+    c = torch.cos(theta)
+    s = torch.sin(theta)
+    du1 = c * dx - s * dy
+    du2 = s * dx + c * dy
+    return du1, du2
 
 class DyNCA(torch.nn.Module):
     SEED_MODES = ['random', 'center_on', 'zeros', 'custom']
@@ -57,6 +57,7 @@ class DyNCA(torch.nn.Module):
         self.vf_emb = vf_emb
         self.device = device
         self.expand = 4
+        self.theta = theta_filters
 
         self.c_cond = 0
         if self.pos_emb == 'CPE':
@@ -79,17 +80,11 @@ class DyNCA(torch.nn.Module):
         torch.nn.init.xavier_normal_(self.w2.weight, gain=0.1)
         torch.nn.init.zeros_(self.w2.bias)
 
-        sobel_x = torch.FloatTensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]])
-        sobel_y = sobel_x.T
+        self.sobel_filter_x = torch.FloatTensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]])
+        self.sobel_filter_y = self.sobel_filter_x.T
 
-        self.sobel_filter_x = rotateFilter(sobel_x, theta_filters).to(
-            self.device)
-        self.sobel_filter_y = rotateFilter(sobel_y, theta_filters).to(
-            self.device)
-
-        self.identity_filter =  rotateFilter(torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]]), theta_filters).to(self.device)
-        self.laplacian_filter =  rotateFilter(torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]]), theta_filters).to(
-            self.device)
+        self.identity_filter =  torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
+        self.laplacian_filter =  torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]])
 
     def perceive_torch(self, x, scale=0):
         assert scale in [0, 1, 2, 3, 4, 5]
@@ -100,12 +95,13 @@ class DyNCA(torch.nn.Module):
             x = F.interpolate(x, size=(h_new, w_new), mode='bilinear', align_corners=False)
 
         def _perceive_with_torch(z, weight):
-            conv_weights = weight.reshape(1, 1, 5, 5).repeat(self.c_in, 1, 1, 1)
-            z = F.pad(z, [2, 2, 2, 2], self.padding_mode)
+            conv_weights = weight.reshape(1, 1, 3, 3).repeat(self.c_in, 1, 1, 1)
+            z = F.pad(z, [1, 1, 1, 1], self.padding_mode)
             return F.conv2d(z, conv_weights, groups=self.c_in)
 
-        y1 = _perceive_with_torch(x, self.sobel_filter_x)
-        y2 = _perceive_with_torch(x, self.sobel_filter_y)
+        dx = _perceive_with_torch(x, self.sobel_filter_x)
+        dy = _perceive_with_torch(x, self.sobel_filter_y)
+        y1, y2 = rotateFiltered(dx, dy, self.theta)
         y3 = _perceive_with_torch(x, self.laplacian_filter)
 
         tensor_list = [x]
