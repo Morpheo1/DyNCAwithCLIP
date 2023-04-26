@@ -1,3 +1,6 @@
+from typing import Tuple, List
+
+import PIL.Image
 import torch
 import numpy as np
 from torchvision import transforms
@@ -8,7 +11,7 @@ import copy
 from utils.loss.appearance_loss import get_middle_feature_vgg
 
 
-def preprocess_style_image(style_img, model_type='vgg', img_size=(128, 128), batch_size=4, crop=True):
+def preprocess_style_image(style_img: PIL.Image.Image, img_size: Tuple[int, int] = (128, 128), batch_size: int = 4, crop: bool = True) -> torch.Tensor:
     """
     Processes Images to transform them to the required format.
 
@@ -16,9 +19,7 @@ def preprocess_style_image(style_img, model_type='vgg', img_size=(128, 128), bat
     ----------
     style_img: PIL.Image.Image
         Input image (in PIL.Image.Image format)
-    model_type: str
-        if model type is not vgg, then nothing happens
-    img_size: List[int]
+    img_size: Tuple[int]
         targeted image size, excluding channels and batches
     batch_size: int
         how many times to repeat the image
@@ -31,8 +32,8 @@ def preprocess_style_image(style_img, model_type='vgg', img_size=(128, 128), bat
         Reshaped image as a Tensor of size ('batch_size', channels, img_size[0], img_size[1])
 
     """
-    if model_type == 'vgg':
-        w, h = style_img.size
+    w, h = style_img.size
+    if h != img_size[0] and w != img_size[1]:
         if w == h:
             style_img = style_img.resize((img_size[0], img_size[1]))
             style_img = style_img.convert('RGB')
@@ -64,15 +65,15 @@ def preprocess_style_image(style_img, model_type='vgg', img_size=(128, 128), bat
                 square_img.paste(style_img, (x_offset, y_offset))
                 style_img = square_img
 
-        style_img = np.float32(style_img) / 255.0
-        style_img = torch.as_tensor(style_img)
-        style_img = style_img[None, ...]
-        input_img_style = style_img.permute(0, 3, 1, 2)
-        input_img_style = input_img_style.repeat(batch_size, 1, 1, 1)
-        return input_img_style  # , style_img_tensor
+    style_img = np.float32(style_img) / 255.0
+    style_img = torch.as_tensor(style_img)
+    style_img = style_img[None, ...]
+    input_img_style = style_img.permute(0, 3, 1, 2)
+    input_img_style = input_img_style.repeat(batch_size, 1, 1, 1)
+    return input_img_style  # , style_img_tensor
 
 
-def preprocess_vector_field(vector_field, img_size=(128, 128), crop=True):
+def preprocess_vector_field(vector_field, img_size=(128, 128), crop=True) -> torch.Tensor:
     """
     Similar to preprocess_style_image, but for vector fields
 
@@ -123,7 +124,7 @@ def preprocess_vector_field(vector_field, img_size=(128, 128), crop=True):
     return target_motion_vec
 
 
-def preprocess_video(video_path, img_size=(128, 128), normalRGB=False, single_frame=-1):
+def preprocess_video(video_path, img_size=(128, 128), normalRGB=False, single_frame=-1) -> torch.Tensor:
     """
     Creates a Tensor from the given video path of the specified size: #frames_in_video * #channels * img_size
 
@@ -156,7 +157,7 @@ def preprocess_video(video_path, img_size=(128, 128), normalRGB=False, single_fr
                 if single_frame != index:
                     index += 1
                     continue
-            cur_frame_tensor = preprocess_style_image(frame, 'vgg', img_size)
+            cur_frame_tensor = preprocess_style_image(frame, img_size)
             if not normalRGB:
                 cur_frame_tensor = cur_frame_tensor * 2.0 - 1.0
             train_image_seq.append(cur_frame_tensor)
@@ -186,7 +187,7 @@ def preprocess_video(video_path, img_size=(128, 128), normalRGB=False, single_fr
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # BGR->RGB
             frame = Image.fromarray(frame.astype(np.uint8)).convert('RGB')
 
-            cur_frame_tensor = preprocess_style_image(frame, 'vgg', img_size)
+            cur_frame_tensor = preprocess_style_image(frame, img_size)
             if not normalRGB:
                 cur_frame_tensor = cur_frame_tensor * 2.0 - 1.0
 
@@ -228,7 +229,7 @@ def select_frame(args, image_seq, vgg_model):
     return frame_idx
 
 
-def get_train_image_seq(args, **kwargs):
+def get_train_image_seq(args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor, PIL.Image.Image, int, List[torch.Tensor]]:
     """
     Given an image or video, creates a preprocessed version of it,
     a frame from it, an image version of it, and the index of the chosen frame.
@@ -256,7 +257,7 @@ def get_train_image_seq(args, **kwargs):
     flow_list = []
     if '.png' in args.target_appearance_path or '.jpg' in args.target_appearance_path or '.jpeg' in args.target_appearance_path:
         style_img = Image.open(args.target_appearance_path)
-        train_image_seq_texture = preprocess_style_image(style_img, model_type='vgg', img_size=args.img_size)
+        train_image_seq_texture = preprocess_style_image(style_img, img_size=args.img_size)
         train_image_seq_texture = train_image_seq_texture[0:1].to(args.DEVICE)  # 1, C, H, W
         train_image_seq_texture = (train_image_seq_texture * 2.0) - 1.0
         frame_idx_texture = 0

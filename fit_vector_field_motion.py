@@ -125,8 +125,7 @@ DEVICE = torch.device(args.DEVICE if torch.cuda.is_available() else "cpu")
 DynamicTextureLoss = Loss(args)
 
 style_img = Image.open(args.target_appearance_path)
-target_appearance_img = preprocess_style_image(style_img, model_type='vgg',
-                                               img_size=args.img_size,
+target_appearance_img = preprocess_style_image(style_img, img_size=args.img_size,
                                                batch_size=args.batch_size) * 2.0 - 1.0  # [-1.0, 1.0]
 target_appearance_img = target_appearance_img.to(DEVICE)
 
