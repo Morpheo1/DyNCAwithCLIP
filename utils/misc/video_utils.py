@@ -65,13 +65,14 @@ def synthesize_video(args, nca_model, video_length: int, output_dir: str, img_pa
             scaled_mask = flow_to_mask(vector_field, eps=args.flow_sensibility, c=args.nca_c_in)  # use args here
         elif args.mask == "water":
             scaled_mask = water_to_mask(img_path, seed_size, args.pretrained_path, device=args.DEVICE, c=args.nca_c_in)
+            scaled_mask = torch.round(scaled_mask)
         scaled_mask = smooth_mask(scaled_mask, smoothness=args.mask_smooth)
 
         nca_model.mask = scaled_mask
         h = nca_model.seed(1, size=seed_size, img=scaled_img)
+        step_n = nca_step
 
         for k in tqdm(range(int(video_length * fps)), desc="Making the video..."):
-            step_n = nca_step
             nca_state, nca_feature = nca_model.forward_nsteps(h, step_n)
 
             z = nca_feature
