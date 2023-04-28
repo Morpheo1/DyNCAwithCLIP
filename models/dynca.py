@@ -144,7 +144,7 @@ class DyNCA(torch.nn.Module):
         b, c, h, w = y.shape
 
         #self.mask should be of shape [1, c, h, w]
-        update_mask = ((torch.rand(b, 1, h, w) + update_rate) * self.mask).floor().to(self.device)
+        update_mask = ((torch.rand(b, 1, h, w) + update_rate) * self.mask).floor().to(self.device) # WRONG WITH SMOOTH
 
         x = x + y * update_mask
 
@@ -180,7 +180,7 @@ class DyNCA(torch.nn.Module):
             return sd
         else:
             sd = None
-
+        print(f"Size of one batch {sd.element_size() * sd.nelement()}b")
         sd = torch.cat([sd.clone() for _ in range(n)]).to(self.device)
 
         return sd

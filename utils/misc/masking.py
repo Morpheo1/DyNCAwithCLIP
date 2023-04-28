@@ -143,5 +143,6 @@ def smooth_mask(mask: torch.Tensor, smoothness: int = 15, sigma: int = 3) -> tor
     torch.Tensor
         smoothed input
     """
-    mask = torchvision.transforms.GaussianBlur(kernel_size=(smoothness, smoothness), sigma=sigma)(mask)
+    if smoothness > 0 and smoothness % 2 == 1:
+        mask = torchvision.transforms.GaussianBlur(kernel_size=(smoothness, smoothness), sigma=sigma)(mask)
     return mask
