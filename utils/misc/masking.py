@@ -87,8 +87,14 @@ def water_to_mask(image_path: str, size: Tuple[int, int], pretrained_path: str, 
 
         mask = torch.from_numpy(np.float32(mask))
         mask = mask[None, None, :, :]
-        ones = torch.ones(1, c - 3, mask.shape[2], mask.shape[3])  # .to(update_mask.get_device())
-        mask = torch.cat((mask, mask, mask, ones), 1)
+
+        #only freeze rgb
+        #ones = torch.ones(1, c - 3, mask.shape[2], mask.shape[3])  # .to(update_mask.get_device())
+        #mask = torch.cat((mask, mask, mask, ones), 1)
+
+        #Freeze everything
+        mask = mask.repeat(1, 12 , 1, 1)
+
         print(mask.shape)
         return mask
 
