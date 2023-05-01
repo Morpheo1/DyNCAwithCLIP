@@ -68,6 +68,7 @@ class AppearanceLoss(torch.nn.Module):
     def forward(self, input_dict, return_summary=True):
         loss = 0.0
 
+        update_mask = input_dict['update_mask']
         target_image_list = input_dict['target_image_list']
         generated_image_list = input_dict['generated_image_list']
         for target_images, generated_images in zip(target_image_list, generated_image_list):
@@ -75,8 +76,8 @@ class AppearanceLoss(torch.nn.Module):
             _, _, ht, wt = target_images.shape
 
             # Scale the images before feeding to VGG
-            generated_images = (generated_images + 1.0) / 2.0
-            target_images = (target_images + 1.0) / 2.0
+            generated_images = (generated_images + 1.0) / 2.0 * update_mask
+            target_images = (target_images + 1.0) / 2.0 * update_mask
 
             if h != ht or w != wt:
                 target_images = TF.resize(target_images, size=(h, w))
