@@ -46,7 +46,7 @@ class DyNCA(torch.nn.Module):
         super().__init__()
         self.c_in = c_in
         self.c_out = c_out
-        self.mask = mask
+        self.mask = mask.to(torch.device("cpu"))
         self.perception_scales = perception_scales
         self.fc_dim = fc_dim
         self.padding_mode = padding_mode
