@@ -131,11 +131,11 @@ class DyNCA(torch.nn.Module):
 
         return y
 
-    def forward(self, x, update_rate=0.5, return_perception=False, top_crop=0, left_crop=0):
+    def forward(self, x, update_rate=0.5, return_perception=False):
         if self.pos_emb_2d and self.vf_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x, top_crop, left_crop), vf_emb_mat=self.vf_emb_2d(x))
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x))
         elif self.pos_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x, top_crop, left_crop))
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x))
         elif self.vf_emb_2d:
             y_percept = self.perceive_multiscale(x, vf_emb_mat=self.vf_emb_2d(x))
         else:
@@ -156,11 +156,14 @@ class DyNCA(torch.nn.Module):
     def to_rgb(self, x):
         return x[:, :self.c_out, ...] * 2.0
 
-    def seed(self, n, size=128, img=None):
+    def seed(self, n, size=128, img=None, top=0, left=0):
         if isinstance(size, int):
             size_x, size_y = size, size
         else:
             size_x, size_y = size
+
+        if self.pos_emb_2d is CPE2D:
+            self.pos_emb_2d.patch_pos = (top, left)
 
         if self.seed_mode == 'zeros':
             sd = torch.zeros(n, self.c_in, size_y, size_x).to(self.device)
@@ -206,20 +209,17 @@ class CPE2D(nn.Module):
     def __init__(self, shape=None):
         super(CPE2D, self).__init__()
         self.cached_penc = None
-        self.original_shape = shape
+        self.ori_shape = shape
+        self.patch_pos = (0, 0)
         self.last_tensor_shape = None
 
-    def forward(self, tensor, t=0, l=0):
+    def forward(self, tensor):
         """
 
         Parameters
         ----------
         tensor :
             A 4d tensor of size (batch_size, ch, x, y)
-        t : int
-            Vertical component of the top left corner of the crop box.
-        l : int
-            Horizontal component of the top left corner of the crop box.
         Returns
         -------
         torch.Tensor
@@ -234,10 +234,11 @@ class CPE2D(nn.Module):
 
         self.cached_penc = None
         batch_size, orig_ch, h_p, w_p = tensor.shape
-        if self.original_shape is not None and self.original_shape != (0, 0):
-            h, w = self.original_shape
+        if self.ori_shape is not None and self.ori_shape[0] != 0 and self.ori_shape[1] != 0:
+            h, w = self.ori_shape
         else:
             h, w = h_p, w_p
+        t, l = self.patch_pos
         xs = torch.arange(start=t, end=t+h_p, device=tensor.device) / h
         ys = torch.arange(start=l, end=l+w_p, device=tensor.device) / w
         xs = 2.0 * (xs - 0.5 + 0.5 / h)
