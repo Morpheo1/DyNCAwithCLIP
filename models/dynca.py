@@ -41,7 +41,7 @@ class DyNCA(torch.nn.Module):
                  theta_filters = 0,
                  seed_mode='zeros', pos_emb='CPE', vf_emb=None,
                  perception_scales=[0],
-                 device=torch.device("cuda:0")):
+                 device=torch.device("cuda:0"), ori_shape=(0, 0)):
 
         super().__init__()
         self.c_in = c_in
@@ -61,7 +61,7 @@ class DyNCA(torch.nn.Module):
 
         self.c_cond = 0
         if self.pos_emb == 'CPE':
-            self.pos_emb_2d = CPE2D()
+            self.pos_emb_2d = CPE2D(ori_shape)
             self.c_cond += 2
         else:
             self.pos_emb_2d = None
@@ -131,11 +131,11 @@ class DyNCA(torch.nn.Module):
 
         return y
 
-    def forward(self, x, update_rate=0.5, return_perception=False):
+    def forward(self, x, update_rate=0.5, return_perception=False, top_crop=0, left_crop=0):
         if self.pos_emb_2d and self.vf_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x))
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x, top_crop, left_crop), vf_emb_mat=self.vf_emb_2d(x))
         elif self.pos_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x))
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x, top_crop, left_crop))
         elif self.vf_emb_2d:
             y_percept = self.perceive_multiscale(x, vf_emb_mat=self.vf_emb_2d(x))
         else:
@@ -203,16 +203,29 @@ class CPE2D(nn.Module):
     Cartesian Positional Encoding 2D
     """
 
-    def __init__(self):
+    def __init__(self, shape=None):
         super(CPE2D, self).__init__()
         self.cached_penc = None
+        self.original_shape = shape
         self.last_tensor_shape = None
 
-    def forward(self, tensor):
+    def forward(self, tensor, t=0, l=0):
         """
-        :param tensor: A 4d tensor of size (batch_size, ch, x, y)
-        :return: Positional Encoding Matrix of size (batch_size, 2, x, y)
+
+        Parameters
+        ----------
+        tensor :
+            A 4d tensor of size (batch_size, ch, x, y)
+        t : int
+            Vertical component of the top left corner of the crop box.
+        l : int
+            Horizontal component of the top left corner of the crop box.
+        Returns
+        -------
+        torch.Tensor
+            Positional Encoding Matrix of size (batch_size, 2, x, y)
         """
+
         if len(tensor.shape) != 4:
             raise RuntimeError("The input tensor has to be 4d!")
 
@@ -220,14 +233,18 @@ class CPE2D(nn.Module):
             return self.cached_penc
 
         self.cached_penc = None
-        batch_size, orig_ch, h, w = tensor.shape
-        xs = torch.arange(h, device=tensor.device) / h
-        ys = torch.arange(w, device=tensor.device) / w
+        batch_size, orig_ch, h_p, w_p = tensor.shape
+        if self.original_shape is not None and self.original_shape != (0, 0):
+            h, w = self.original_shape
+        else:
+            h, w = h_p, w_p
+        xs = torch.arange(start=t, end=t+h_p, device=tensor.device) / h
+        ys = torch.arange(start=l, end=l+w_p, device=tensor.device) / w
         xs = 2.0 * (xs - 0.5 + 0.5 / h)
         ys = 2.0 * (ys - 0.5 + 0.5 / w)
         xs = xs[None, :, None]
         ys = ys[None, None, :]
-        emb = torch.zeros((2, h, w), device=tensor.device).type(tensor.type())
+        emb = torch.zeros((2, h_p, w_p), device=tensor.device).type(tensor.type())
         emb[:1] = xs
         emb[1: 2] = ys
 
