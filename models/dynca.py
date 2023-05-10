@@ -132,12 +132,12 @@ class DyNCA(torch.nn.Module):
         return y
 
     def forward(self, x, update_rate=0.5, return_perception=False):
-        if self.pos_emb_2d:
+        if self.pos_emb_2d and self.vf_emb_2d:
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x))
+        elif self.pos_emb_2d:
             y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x))
         elif self.vf_emb_2d:
             y_percept = self.perceive_multiscale(x, vf_emb_mat=self.vf_emb_2d(x))
-        elif self.pos_emb_2d and self.vf_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x))
         else:
             y_percept = self.perceive_multiscale(x)
         y = self.w2(F.relu(self.w1(y_percept)))
