@@ -87,7 +87,7 @@ class DyNCA(torch.nn.Module):
         self.laplacian_filter =  torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]]).to(self.device)
 
     def perceive_torch(self, x, scale=0):
-        assert scale in [0, 1, 2, 3, 4, 5]
+        # assert scale in [0, 1, 2, 3, 4, 5] # removed assert so that we can do finer changes in scale
         if scale != 0:
             _, _, h, w = x.shape
             h_new = int(h // (2 ** scale))
