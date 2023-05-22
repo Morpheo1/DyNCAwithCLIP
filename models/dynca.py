@@ -39,6 +39,7 @@ class DyNCA(torch.nn.Module):
                  fc_dim=96,
                  padding_mode='replicate',
                  theta_filters = 0,
+                 scaling_weights = None,
                  seed_mode='zeros', pos_emb='CPE', vf_emb=None,
                  perception_scales=[0],
                  device=torch.device("cuda:0"), ori_shape=(0, 0)):
@@ -58,6 +59,7 @@ class DyNCA(torch.nn.Module):
         self.device = device
         self.expand = 4
         self.theta = theta_filters
+        self.scaling_weights = scaling_weights
 
         self.c_cond = 0
         if self.pos_emb == 'CPE':
@@ -86,8 +88,27 @@ class DyNCA(torch.nn.Module):
         self.identity_filter =  torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]]).to(self.device)
         self.laplacian_filter =  torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]]).to(self.device)
 
+    def weighted_average(self, tlist, weights):
+        # Check the input shapes
+        assert len(tlist) > 0, "The list of tensors must not be empty"
+        assert weights.dim() == 3, "The weights tensor must have dimensions (h, w, d)"
+        assert weights.shape[-1] == len(tlist), "The number of tensors in tlist must match the depth dimension in weights"
+
+        # Normalize the weights to ensure they sum up to 1
+        weights_sum = torch.sum(weights, dim=-1, keepdim=True)
+        normalized_weights = weights / weights_sum
+
+        # Expand the weights tensor to match the size of the tensors in tlist
+        expanded_weights = normalized_weights.unsqueeze(0).unsqueeze(0)
+
+        # Perform the weighted average
+        weighted_sum = torch.sum(torch.stack(tlist, dim=0) * expanded_weights, dim=0)
+
+        return weighted_sum
+
     def perceive_torch(self, x, scale=0):
         # assert scale in [0, 1, 2, 3, 4, 5] # removed assert so that we can do finer changes in scale
+
         if scale != 0:
             _, _, h, w = x.shape
             h_new = int(h // (2 ** scale))
@@ -114,15 +135,20 @@ class DyNCA(torch.nn.Module):
 
         return y
 
-    def perceive_multiscale(self, x, pos_emb_mat=None, vf_emb_mat = None):
+    def perceive_multiscale(self, x, pos_emb_mat=None, vf_emb_mat = None, scaling_weights = None):
+
         perceptions = []
         y = 0
         for scale in self.perception_scales:
             z = self.perceive_torch(x, scale=scale)
             perceptions.append(z)
 
-        y = sum(perceptions)
-        y = y / len(self.perception_scales)
+
+        if scaling_weights is not None:
+            y = weighted_average(perceptions, scaling_weights)
+        else :
+            y = sum(perceptions)
+            y = y / len(self.perception_scales)
 
         if pos_emb_mat is not None:
             y = torch.cat([y, pos_emb_mat], dim=1)
@@ -133,13 +159,13 @@ class DyNCA(torch.nn.Module):
 
     def forward(self, x, update_rate=0.5, return_perception=False):
         if self.pos_emb_2d and self.vf_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x))
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), vf_emb_mat=self.vf_emb_2d(x), scaling_weights = self.scaling_weights)
         elif self.pos_emb_2d:
-            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x))
+            y_percept = self.perceive_multiscale(x, pos_emb_mat=self.pos_emb_2d(x), scaling_weights = self.scaling_weights)
         elif self.vf_emb_2d:
-            y_percept = self.perceive_multiscale(x, vf_emb_mat=self.vf_emb_2d(x))
+            y_percept = self.perceive_multiscale(x, vf_emb_mat=self.vf_emb_2d(x), scaling_weights = self.scaling_weights)
         else:
-            y_percept = self.perceive_multiscale(x)
+            y_percept = self.perceive_multiscale(x, scaling_weights = self.scaling_weights)
         y = self.w2(F.relu(self.w1(y_percept)))
         b, c, h, w = y.shape
 
