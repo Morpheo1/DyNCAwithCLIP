@@ -88,24 +88,6 @@ class DyNCA(torch.nn.Module):
         self.identity_filter =  torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]]).to(self.device)
         self.laplacian_filter =  torch.FloatTensor([[1.0, 2.0, 1.0], [2.0, -12, 2.0], [1.0, 2.0, 1.0]]).to(self.device)
 
-    def weighted_average(self, tlist, weights):
-        # Check the input shapes
-        assert len(tlist) > 0, "The list of tensors must not be empty"
-        assert weights.dim() == 3, "The weights tensor must have dimensions (h, w, d)"
-        assert weights.shape[-1] == len(tlist), "The number of tensors in tlist must match the depth dimension in weights"
-
-        # Normalize the weights to ensure they sum up to 1
-        weights_sum = torch.sum(weights, dim=-1, keepdim=True)
-        normalized_weights = weights / weights_sum
-
-        # Expand the weights tensor to match the size of the tensors in tlist
-        expanded_weights = normalized_weights.unsqueeze(0).unsqueeze(0)
-
-        # Perform the weighted average
-        weighted_sum = torch.sum(torch.stack(tlist, dim=0) * expanded_weights, dim=0)
-
-        return weighted_sum
-
     def perceive_torch(self, x, scale=0):
         # assert scale in [0, 1, 2, 3, 4, 5] # removed assert so that we can do finer changes in scale
 
@@ -134,6 +116,8 @@ class DyNCA(torch.nn.Module):
             y = F.interpolate(y, size=(h, w), mode='bilinear', align_corners=False)
 
         return y
+    
+    
 
     def perceive_multiscale(self, x, pos_emb_mat=None, vf_emb_mat = None, scaling_weights = None):
 
@@ -143,6 +127,23 @@ class DyNCA(torch.nn.Module):
             z = self.perceive_torch(x, scale=scale)
             perceptions.append(z)
 
+        def weighted_average(tlist, weights):
+            # Check the input shapes
+            assert len(tlist) > 0, "The list of tensors must not be empty"
+            assert weights.dim() == 3, "The weights tensor must have dimensions (h, w, d)"
+            assert weights.shape[-1] == len(tlist), "The number of tensors in tlist must match the depth dimension in weights"
+
+            # Normalize the weights to ensure they sum up to 1
+            weights_sum = torch.sum(weights, dim=-1, keepdim=True)
+            normalized_weights = weights / weights_sum
+
+            # Expand the weights tensor to match the size of the tensors in tlist
+            expanded_weights = normalized_weights.unsqueeze(0).unsqueeze(0).to(self.device)
+
+            # Perform the weighted average
+            weighted_sum = torch.sum(torch.stack(tlist, dim=4) * expanded_weights, dim=4)
+
+            return weighted_sum
 
         if scaling_weights is not None:
             y = weighted_average(perceptions, scaling_weights)
