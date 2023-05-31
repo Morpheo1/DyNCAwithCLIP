@@ -1,52 +1,37 @@
-# DyNCA: Real-Time Dynamic Texture Synthesis Using Neural Cellular Automata (CVPR 2023)
+# CS413 Project at EPFL, supervised by E. Pajouheshgar - based on DyNCA
 
 [![arXiv](https://img.shields.io/badge/arXiv-2108.00946-b31b1b.svg)](https://arxiv.org/abs/2211.11417)
 
-[[Project Website](https://dynca.github.io/)]
+[[Original Project Website](https://dynca.github.io/)]
 
-This is the official implementation of DyNCA, framework for real-time and controllable dynamic texture synthesis. Our
-model can learn to synthesize dynamic texture videos such that:
+This repository contains all the necessary code to reproduce our results.
+Compared to the original project, we mainly modified the files `utils/loss/appearance_loss.py` and `models/dynca.py`, as well as adding slightly modifying the files in `utils/misc` where necessary to make them work with our changes.
 
-* The frames of the video resemble a given target appearance
-* The succession of the frames induces the motion of the target dynamic which can either be a video or a motion vector
-  field
+## Run in Google Colab or locally
 
-![](data/repo_images/teaser.png)
+Our contributions include the possibility to train the model using CLIP loss instead of another appearance loss to use text as target instead of an image. We also implemented the ability to add motion to the part of an image containing water. Our third improvement relates to the size of texture elements, which can be an issue if we have limited training resources. All of these have at least one notebook that can be run to reproduce our main results.
 
-[comment]: <> (Starting from a seed state, DyNCA iteratively updates it, generating an image sequence. We extract images from this)
+| **Functionality** | **Colab or Jupyter Notebook**|
+|:-----------------:|:------------------:|
+| CLIP loss between 2 images | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ZbjToOcnUyVwtrsXRjgVqT5pKgIzOCgr) |
+| CLIP loss between target text and generated image | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/17IPqQlnjPd5_4x_WLg5uIovtKNWketcA) |
+| Animating the part of an image containing water | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1yA1pRRDnXzf2NY_E_FI6MtwjNdzhjip3) |
+| Using a model to detect water and apply proper masking when training and adding the animation | [Jupyter notebook](notebooks/vector_field_motion_water_masked.ipynb) |
+| Controlling the size of texture elements after training | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1MWuwxoUd-oLUP3k1hWe9EQ4QuUvguJjt) |
+| Training with patches | [TODO](notebooks/vector_field_motion_water_masked.ipynb) |
+| Combining animating the water in an image and scale control | [TODO](notebooks/vector_field_motion_water_masked.ipynb) |
 
-[comment]: <> (sequence and compare them with an appearance target as well as a motion target to obtain the DyNCA training objectives.)
-
-[comment]: <> (After training, DyNCA can adapt to seeds of different height and width, and synthesize videos with arbitrary length.)
-
-[comment]: <> (Sequentially applying DyNCA updates on the seed synthesizes dynamic texture videos in real-time.)
-
-## Run in Google Colab
-
-DyNCA can learn the target motion either from a video or a motion vector field. In the table below you can find the
-corresponding notebooks for different modes of training DyNCA.
-
-| **Target Motion** | **Colab Notebook** | **Jupyter Notebook** |
-|:-----------------:|:------------------:|:--------------------:|
-| VectorField | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IVRL/DyNCA/blob/main/notebooks/vector_field_motion_colab.ipynb) | [vector_field_motion.ipynb](notebooks/vector_field_motion.ipynb) |
-|  Video | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IVRL/DyNCA/blob/main/notebooks/video_motion_colab.ipynb)                   |           [video_motion.ipynb](notebooks/video_motion.ipynb)            |
+## Explanation needed to understand and use/experiment with each notebook
 
 
-## Run Locally
 
-TODO
+## Installing Requirements
 
-### Installing Requirements
+To be able to use the model that detects water areas, download it [here](https://drive.google.com/drive/folders/1q8W_CGnMSOsaB3TGTrSabuX-oZ89vusw?usp=sharing) and add it to `pretrained_models/deeplabv3`.
 
-TODO
+Check `requirements.txt` to know which packages to install to be able to run the jupyter notebooks
 
-### Running the training scripts
-
-TODO
-
-### Visualizing with Streamlit
-
-## Citation
+## Citation (copied from the original project's repository)
 
 If you make use of our work, please cite our paper:
 
