@@ -23,7 +23,12 @@ Our contributions include the possibility to train the model using CLIP loss ins
 
 ## Explanation needed to understand and use/experiment with each notebook
 
-
+* CLIP loss between 2 images: nothing to do, this just shows that the loss works to compare 2 images
+* CLIP loss between target text and generated image : in the cell "Setup training", you can modify the line `input_dict['target_text'] = ` to any text you see fit as a target for the model
+* Animating the part of an image containing water : in the cell "Training configuration", there is a comment explaining how to modify the target appearance and vector field to those of an image that exhibits issues. The default target works properly.
+* Using a model to detect water and apply proper masking when training and adding the animation : in the cell "Generate videos" at the bottom, you can modify the function `save_video()` to get different results after training (no need to re-train after each of these modifications). This will allow controlling the size of the texture elements. More detailed explanations can be found in the notebook as comments.
+* Controlling the size of texture elements after training : TODO
+* Combining animating the water in an image and scale control : TODO
 
 ## Installing Requirements
 
