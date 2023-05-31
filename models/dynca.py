@@ -25,8 +25,32 @@ class DyNCA(torch.nn.Module):
         Note that the NCA will be performed using c_in channels
         and the output of the NCA will be expanded to c_out 
         channels using a learnable 1x1 convolution layer 
+    mask: Tensor, required
+        The update mask that will be applied at every forward step
+        This is expected to be torch.ones((1, 1, 1, 1)) when we do
+        not want to mask the forward step
+        This is set to another value for adding motion to parts of images
+    target_vector_field : Tensor, default=None
+        If needed, the custom target vector field provided by the user 
     fc_dim: int, default=94
         Number of channels in the intermediate fully connected layer
+    theta_filters : float, default=0
+        The angle by which the sobel filters used during perception will
+        be rotated. This can be set post-training during video generation
+    scaling_weights : Tensor, default=None
+        If set, used to specify the weights per pixel of each of the
+        elements in the list perception_scales
+    vf_emp : String, default=None
+        If enabled, will add information in 2 hidden channel to represent
+        the vector field direction and magnitude at each pixel
+    perception_scales : list, default=[0]
+        Defines the different scales at which perception is performed.
+        This can be used to get more information about pixels further away 
+        but also, if modified after training, to change the size of the
+        generated texture elements
+    ori_shape : tuple, default=(0, 0)
+        Used to keep information about the original image's size
+        when training with patches
     random_seed: int, default=None
     seed_mode: {'zeros', 'center_on', 'random'}, default='constant'
         Type of the seed used to initialize the cellular automata
@@ -67,6 +91,7 @@ class DyNCA(torch.nn.Module):
             self.c_cond += 2
         else:
             self.pos_emb_2d = None
+        #Add the possibility to have vector field encoding
         if self.vf_emb == 'VFE':
             self.vf_emb_2d = VFE(target_vector_field)
             self.c_cond += 2
@@ -104,6 +129,7 @@ class DyNCA(torch.nn.Module):
 
         dx = _perceive_with_torch(x, self.sobel_filter_x)
         dy = _perceive_with_torch(x, self.sobel_filter_y)
+        #if the angle specified is not zero, rotate the gradient values at each pixel
         y1, y2 = rotateFiltered(dx, dy, self.theta, self.device)
         y3 = _perceive_with_torch(x, self.laplacian_filter)
 
@@ -127,21 +153,19 @@ class DyNCA(torch.nn.Module):
             z = self.perceive_torch(x, scale=scale)
             perceptions.append(z)
 
-        def weighted_average(tlist, weights):
-            # Check the input shapes
-            assert len(tlist) > 0, "The list of tensors must not be empty"
-            assert weights.dim() == 3, "The weights tensor must have dimensions (h, w, d)"
-            assert weights.shape[-1] == len(tlist), "The number of tensors in tlist must match the depth dimension in weights"
+        #Auxiliary function used when we have different perception scales at each pixel to get different sizes of texture
+        #elements in different areas of the resulting video
+        def weighted_average(perception_list, weights):
 
             # Normalize the weights to ensure they sum up to 1
             weights_sum = torch.sum(weights, dim=-1, keepdim=True)
             normalized_weights = weights / weights_sum
 
-            # Expand the weights tensor to match the size of the tensors in tlist
+            # Expand the weights tensor to match the size of the tensors in perception_list
             expanded_weights = normalized_weights.unsqueeze(0).unsqueeze(0).to(self.device)
 
             # Perform the weighted average
-            weighted_sum = torch.sum(torch.stack(tlist, dim=4) * expanded_weights, dim=4)
+            weighted_sum = torch.sum(torch.stack(perception_list, dim=4) * expanded_weights, dim=4)
 
             return weighted_sum
 

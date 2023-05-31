@@ -17,6 +17,7 @@ class AppearanceLoss(torch.nn.Module):
         args.texture_slw_weight = 0.0
         args.texture_ot_weight = 0.0
         args.texture_gram_weight = 0.0
+        #Added loss types for CLIP
         args.texture_clipimg_weight = 0.0
         args.texture_cliptxt_weight = 0.0
 
@@ -26,6 +27,7 @@ class AppearanceLoss(torch.nn.Module):
             args.texture_slw_weight = 1.0
         elif args.appearance_loss_type == 'Gram':
             args.texture_gram_weight = 1.0
+        #Added loss types for CLIP
         elif args.appearance_loss_type == 'CLIPImg':
             args.texture_clipimg_weight = 1.0
         elif args.appearance_loss_type == 'CLIPTxt':
@@ -34,6 +36,7 @@ class AppearanceLoss(torch.nn.Module):
         self.slw_weight = args.texture_slw_weight
         self.ot_weight = args.texture_ot_weight
         self.gram_weight = args.texture_gram_weight
+        #Added loss types for CLIP
         self.clipimg_weight = args.texture_clipimg_weight
         self.cliptxt_weight = args.texture_cliptxt_weight
 
@@ -54,6 +57,7 @@ class AppearanceLoss(torch.nn.Module):
             self.loss_mapper["Gram"] = GramLoss(self.args)
             self.loss_weights["Gram"] = self.gram_weight
 
+        #Added loss types for CLIP
         if self.clipimg_weight != 0:
             self.loss_mapper["CLIPImg"] = ClipLossImgToImg(self.args)
             self.loss_weights["CLIPImg"] = self.clipimg_weight
@@ -92,6 +96,7 @@ class AppearanceLoss(torch.nn.Module):
         loss /= len(generated_image_list)
         return loss, None, None
 
+#CLIP loss to compare 2 images. This was used to ensure that our CLIP Loss made sense by applying it to the same image used with regular appearance loss
 class ClipLossImgToImg(torch.nn.Module):
     def __init__(self, args):
         super(ClipLossImgToImg, self).__init__()
@@ -100,16 +105,20 @@ class ClipLossImgToImg(torch.nn.Module):
         
 
     def forward(self, target_images, generated_images):
+        #Transform the image in the same way as described in CLIP's official github (https://github.com/openai/CLIP/blob/main/clip/clip.py)
+        #This ensures the image can be properly understood by CLIP
         transforms = torch.nn.Sequential(
             T.Resize(224),
             T.CenterCrop(224),
             T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
         )
         
+        #pre-process the images so that CLIP can understand them
         with torch.no_grad():
             target_images_processed = transforms(target_images)
         generated_images_processed = transforms(generated_images)
 
+        #Get the target and generated images' representation in CLIP's latent space, aka their CLIP features
         with torch.no_grad():
             target_features = self.model.encode_image(target_images_processed.to(self.args.DEVICE))
         generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
@@ -124,6 +133,7 @@ class ClipLossImgToImg(torch.nn.Module):
         # shape = [global_batch_size, global_batch_size]
         return (- cos_per_generated.mean(axis = 1) + 1).sum()
 
+#CLIP loss to compare an image with the target text.
 class ClipLossTxtToImg(torch.nn.Module):
     def __init__(self, args):
         super(ClipLossTxtToImg, self).__init__()
@@ -132,14 +142,18 @@ class ClipLossTxtToImg(torch.nn.Module):
         
 
     def forward(self, target_text, generated_images):
+        #Transform the image in the same way as described in CLIP's official github (https://github.com/openai/CLIP/blob/main/clip/clip.py)
+        #This ensures the image can be properly understood by CLIP
         transforms = torch.nn.Sequential(
             T.Resize(256),
             T.CenterCrop(224),
             T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711])
         )
         
+        #pre-process the images so that CLIP can understand them
         generated_images_processed = transforms(generated_images)
 
+        #Get the target text and the generated images' representation in CLIP's latent space, aka their CLIP features
         with torch.no_grad():
             target_features = self.model.encode_text(clip.tokenize(target_text).to(self.args.DEVICE))
         generated_features = self.model.encode_image(generated_images_processed.to(self.args.DEVICE))
