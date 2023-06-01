@@ -29,7 +29,11 @@ class VectorFieldMotionLoss(torch.nn.Module):
 
         self.cos_sim = torch.nn.CosineSimilarity(dim=1)
         self.target_motion_vec = args.target_motion_vec
-        self.img_size_for_loss = args.motion_img_size
+        try:
+            self.img_size_for_loss = (args.patch_size, args.patch_size) # changed to be compatible with patches
+        except:
+            # if args does not contain patch compatibility.
+            self.img_size_for_loss = args.motion_img_size
 
         self.motion_model_name = args.motion_model_name
         self.motion_model = models.get_model(self.motion_model_name, models_path="pretrained_models/").to(
