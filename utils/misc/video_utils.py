@@ -57,11 +57,12 @@ def synthesize_video(args, nca_model, video_length: int, output_dir: str, img_pa
     """
     with VideoWriter(filename=f"{os.path.join(output_dir,video_name)}.mp4", fps=fps, autoplay=True) as vid, torch.no_grad():
         style_img = Image.open(img_path)
-        style_vector_field = load_compressed_tensor(vector_field_path)
         scaled_img = preprocess_style_image(style_img, img_size=seed_size, batch_size=args.batch_size, crop=args.crop) * 2.0 - 1.0
-        vector_field = preprocess_vector_field(style_vector_field, img_size=seed_size, crop=args.crop)
+
         scaled_mask = torch.ones([1, 1, 1, 1])
         if args.mask == "flow":
+            style_vector_field = load_compressed_tensor(vector_field_path)
+            vector_field = preprocess_vector_field(style_vector_field, img_size=seed_size, crop=args.crop)
             scaled_mask = flow_to_mask(vector_field, eps=args.flow_sensibility, c=args.nca_c_in)  # use args here
         elif args.mask == "water":
             scaled_mask = water_to_mask(img_path, seed_size, args.pretrained_path, device=args.DEVICE, c=args.nca_c_in)

@@ -41,7 +41,8 @@ def plot_vec_field(vector_field, name="target", vmin=None, vmax=None):
         vmin = norm.min()
     if vmax is None:
         vmax = norm.max()
-
+    if vmax <= 0.001:
+        return Image.new("RGB",(H,W))
     normalize = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax, clip=False)
 
     fig = plt.figure(figsize=(5, 5))
@@ -49,20 +50,22 @@ def plot_vec_field(vector_field, name="target", vmin=None, vmax=None):
     title = f"{name} vector field."
     xs = np.linspace(-1.0, 1.0, W)
     ys = np.linspace(-1.0, 1.0, H)
-
-    sp = plt.streamplot(
-        xs,
-        ys,
-        vector_field[0, ::-1],
-        -vector_field[1, ::-1],
-        color=norm,
-        linewidth=(norm + 0.05) / 1.25,
-        norm=normalize,
-        density=0.75,
-        #         broken_streamlines=False,
-        #         minlength=0.3,
-        # vmin=2.0, vmax=2.0,
-    )
+    try:
+        sp = plt.streamplot(
+            xs,
+            ys,
+            vector_field[0, ::-1],
+            -vector_field[1, ::-1],
+            color=norm,
+            linewidth=(norm + 0.05) / 1.25,
+            norm=normalize,
+            density=0.75,
+            #         broken_streamlines=False,
+            #         minlength=0.3,
+            # vmin=2.0, vmax=2.0,
+        )
+    except:
+        return Image.new("RGB", (H, W))
     #     print(norm.min(), norm.max())
     #     ax.set_xlabel("X")
     #     ax.set_ylabel("Y")

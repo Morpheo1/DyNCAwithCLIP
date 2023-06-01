@@ -80,8 +80,8 @@ class AppearanceLoss(torch.nn.Module):
             _, _, ht, wt = target_images.shape
 
             # Scale the images before feeding to VGG
-            generated_images = (generated_images + 1.0) / 2.0 * update_mask
-            target_images = (target_images + 1.0) / 2.0 * update_mask
+            generated_images = (generated_images + 1.0) / 2.0 * update_mask[:, :3, :, :].to(self.args.DEVICE)
+            target_images = (target_images + 1.0) / 2.0 * update_mask[:, :3, :, :].to(self.args.DEVICE)
 
             if h != ht or w != wt:
                 target_images = TF.resize(target_images, size=(h, w))
